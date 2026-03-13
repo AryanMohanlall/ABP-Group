@@ -1,24 +1,21 @@
-version: '3'
-
 services:
 
   abp_host:
-    image: abp/host
+    build:
+      context: ../../
+      dockerfile: src/ABPGroup.Web.Host/Dockerfile
+    image: abpgroup-host-local
     environment:
-      ASPNETCORE_ENVIRONMENT: "Staging"
-      ConnectionStrings__Default: "Server=10.0.75.1; Database=ABPGroupDb; User=ABPGroupUser; Password=YourStrongPassword;TrustServerCertificate=True;"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
       App__ServerRootAddress: "http://localhost:44311/"
       App__ClientRootAddress: "http://localhost:4200/"
       App__CorsOrigins: "http://localhost:4200"
       TZ: "America/Toronto"
+      PORT: "80"
       Kestrel__Endpoints__Http__Url: "http://+:80"
     ports:
       - "44311:80"
     volumes:
       - "./Host-Logs:/app/App_Data/Logs"
     restart: always
-
-  abp_ng:
-    image: abp/ng
-    ports:
-      - "4200:80"
