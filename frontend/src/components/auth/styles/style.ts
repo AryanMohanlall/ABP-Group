@@ -126,18 +126,20 @@ export const useInputStyles = createStyles(({ token, css }) => ({
 // ─── Social button overrides ──────────────────────────────────────────────────
 export const useSocialBtnStyles = createStyles(({ token, css }) => ({
   btn: css`
-    background: ${glass.bgInput} !important;
-    border: 1px solid ${glass.borderSocial} !important;
-    color: ${glass.textSocial} !important;
-    font-size: ${token.fontSize}px !important;
-    font-weight: 500 !important;
+    && {
+      background: ${glass.bgInput};
+      border: 1px solid ${glass.borderSocial};
+      color: ${glass.textSocial};
+      font-size: ${token.fontSize}px;
+      font-weight: 500;
 
-    &:hover {
-      border-color: ${glass.borderHover} !important;
-      background: ${glass.bgInputHover} !important;
-      color: ${glass.textSocial} !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 24px rgba(45,212,168,0.35) !important;
+      &:hover {
+        border-color: ${glass.borderHover};
+        background: ${glass.bgInputHover};
+        color: ${glass.textSocial};
+        transform: translateY(-1px);
+        box-shadow: 0 4px 24px rgba(45,212,168,0.35);
+      }
     }
   `,
 }));
@@ -145,11 +147,13 @@ export const useSocialBtnStyles = createStyles(({ token, css }) => ({
 // ─── Divider override ─────────────────────────────────────────────────────────
 export const useDividerStyles = createStyles(({ token, css }) => ({
   divider: css`
-    font-size: ${token.fontSizeSM}px !important;
-    font-weight: 500 !important;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin: ${token.marginMD}px 0 !important;
+    && {
+      font-size: ${token.fontSizeSM}px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: ${token.marginMD}px 0;
+    }
   `,
 }));
 
@@ -235,33 +239,37 @@ export const useAuthStyles = createStyles(({ token, css }) => ({
 
   // Gradient override on top of antd primary Button
   primaryBtn: css`
-    background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed}) !important;
-    border: none !important;
-    color: ${token.colorBgLayout} !important;
-    letter-spacing: -0.2px;
-    font-family: ${token.fontFamily} !important;
+    && {
+      background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed});
+      border: none;
+      color: ${token.colorBgLayout};
+      letter-spacing: -0.2px;
+      font-family: ${token.fontFamily};
 
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 24px rgba(45,212,168,0.35) !important;
-      background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed}) !important;
-      color: ${token.colorBgLayout} !important;
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 24px rgba(45,212,168,0.35);
+        background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed});
+        color: ${token.colorBgLayout};
+      }
     }
   `,
 
   primaryBtnMt: css`
-    background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed}) !important;
-    border: none !important;
-    color: ${token.colorBgLayout} !important;
-    letter-spacing: -0.2px;
-    font-family: ${token.fontFamily} !important;
-    margin-top: ${token.marginLG}px;
+    && {
+      background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed});
+      border: none;
+      color: ${token.colorBgLayout};
+      letter-spacing: -0.2px;
+      font-family: ${token.fontFamily};
+      margin-top: ${token.marginLG}px;
 
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 24px rgba(45,212,168,0.35) !important;
-      background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed}) !important;
-      color: ${token.colorBgLayout} !important;
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 24px rgba(45,212,168,0.35);
+        background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed});
+        color: ${token.colorBgLayout};
+      }
     }
   `,
 
@@ -367,32 +375,36 @@ export const useAuthStyles = createStyles(({ token, css }) => ({
   `,
 
   forgotSubmitBtn: css`
-    background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed}) !important;
-    border: none !important;
-    color: ${token.colorBgLayout} !important;
-    letter-spacing: -0.2px;
-    font-family: ${token.fontFamily} !important;
-    margin-top: ${token.marginMD}px;
+    && {
+      background: linear-gradient(135deg, ${token.colorPrimary}, ${glass.primaryMed});
+      border: none;
+      color: ${token.colorBgLayout};
+      letter-spacing: -0.2px;
+      font-family: ${token.fontFamily};
+      margin-top: ${token.marginMD}px;
 
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 24px rgba(45,212,168,0.35) !important;
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 24px rgba(45,212,168,0.35);
+      }
     }
   `,
 
   forgotSubmitBtnDisabled: css`
-    background: rgba(45,212,168,0.15) !important;
-    border: none !important;
-    color: ${token.colorPrimary} !important;
-    cursor: default !important;
-    opacity: 0.6;
-    margin-top: ${token.marginMD}px;
+    && {
+      background: rgba(45,212,168,0.15);
+      border: none;
+      color: ${token.colorPrimary};
+      cursor: default;
+      opacity: 0.6;
+      margin-top: ${token.marginMD}px;
 
-    &:hover {
-      background: rgba(45,212,168,0.15) !important;
-      color: ${token.colorPrimary} !important;
-      transform: none;
-      box-shadow: none !important;
+      &:hover {
+        background: rgba(45,212,168,0.15);
+        color: ${token.colorPrimary};
+        transform: none;
+        box-shadow: none;
+      }
     }
   `,
 
