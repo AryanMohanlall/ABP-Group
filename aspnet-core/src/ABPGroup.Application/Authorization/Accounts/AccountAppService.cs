@@ -8,6 +8,9 @@ using ABPGroup.Authorization.Accounts.Dto;
 using ABPGroup.Authorization.Users;
 using ABPGroup.Editions;
 using ABPGroup.MultiTenancy;
+using Abp.UI;
+using System;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -102,15 +105,17 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
         var existingTenant = await _tenantManager.FindByTenancyNameAsync(input.TenantTenancyName);
         if (existingTenant != null)
         {
-            throw new Abp.UI.UserFriendlyException("TenantTenancyName is already in use.");
+            throw new UserFriendlyException("TenantTenancyName is already in use.");
         }
+
+        var tenantConnectionString = NormalizeAndValidateTenantConnectionString(input.TenantConnectionString);
 
         var tenant = new Tenant(input.TenantTenancyName, input.TenantName)
         {
             IsActive = true,
-            ConnectionString = input.TenantConnectionString.IsNullOrEmpty()
+            ConnectionString = tenantConnectionString.IsNullOrEmpty()
                 ? null
-                : SimpleStringCipher.Instance.Encrypt(input.TenantConnectionString)
+                : SimpleStringCipher.Instance.Encrypt(tenantConnectionString)
         };
 
         var defaultEdition = await _editionManager.FindByNameAsync(EditionManager.DefaultEditionName);
@@ -122,7 +127,14 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
         await _tenantManager.CreateAsync(tenant);
         await CurrentUnitOfWork.SaveChangesAsync();
 
-        _abpZeroDbMigrator.CreateOrMigrateForTenant(tenant);
+        try
+        {
+            _abpZeroDbMigrator.CreateOrMigrateForTenant(tenant);
+        }
+        catch (Exception ex)
+        {
+            throw new UserFriendlyException("Tenant database migration failed. Check TenantConnectionString and database accessibility.", ex.Message);
+        }
 
         using (CurrentUnitOfWork.SetTenantId(tenant.Id))
         {
@@ -135,6 +147,33 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
         }
 
         return tenant.Id;
+    }
+
+    private static string NormalizeAndValidateTenantConnectionString(string tenantConnectionString)
+    {
+        if (tenantConnectionString.IsNullOrWhiteSpace())
+        {
+            return null;
+        }
+
+        var normalized = tenantConnectionString.Trim();
+
+        // Swagger sample payload uses "string" placeholder. Treat it as not provided.
+        if (normalized.Equals("string", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        try
+        {
+            _ = new DbConnectionStringBuilder { ConnectionString = normalized };
+        }
+        catch (ArgumentException)
+        {
+            throw new UserFriendlyException("TenantConnectionString is invalid. Provide a valid PostgreSQL connection string or leave it empty.");
+        }
+
+        return normalized;
     }
 
 }
