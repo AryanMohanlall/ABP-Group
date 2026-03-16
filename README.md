@@ -1,186 +1,142 @@
-# ABPGroup
+# PromptForge: AI Platform for Generating and Deploying Full-Stack Applications
 
-A full-stack starter based on ASP.NET Boilerplate (ABP) with an ASP.NET Core backend and a Next.js frontend.
+**PromptForge** is an intelligent orchestration platform that bridges the gap between natural language ideas and live, running applications. By leveraging a high-performance backend (ASP.NET Core/ABP) and a modern frontend (Next.js), it automates the entire software creation lifecycle: from initial scaffolding to automated cloud deployment.
 
-## Overview
+---
 
-ABPGroup is structured as a backend-first template using ABP (ASP.NET Boilerplate) with multi-tenancy, authentication, and role-based administration baked in. The backend exposes application services and JWT authentication endpoints and ships with database migrations and a dedicated migrator project.
+## 1. Overview & Goal
+Developers and startups often face significant friction when moving from an idea to a functional MVP. PromptForge eliminates this manual overhead. 
 
-The frontend is a Next.js app under `frontend/` and currently contains the default starter page. This repo is a good base for building a multi-tenant admin system with a modern React UI backed by ABP.
+**The Goal:** Build a platform that:
+* Accepts **natural language** app requests.
+* Generates a structured **full-stack application**.
+* Automates **GitHub repository** creation and commits.
+* Triggers **automatic deployment** pipelines.
+* Returns a **live URL** to the user instantly.
 
-## Design
+---
 
-| Resource     | Link                              |
-| ------------ | --------------------------------- |
-| Figma Design | [View Designs](#) (placeholder)   |
-| Live Demo    | Not deployed yet (placeholder)    |
-| Domain Model | [Domain Model](https://drive.google.com/file/d/1qlQETELNI8zWojMrI2GbCQXjUzENu9eq/view?usp=sharing) |
-| Architecture | [Architecture](https://drive.google.com/file/d/13-XbXg1Q31u4pAhsZdx9QOW4dNwz5U54/view?usp=sharing) |
+## 2. Design & Documentation
 
-## Tech Stack
+| Resource | Link |
+| :--- | :--- |
+| **Figma Design** | [View UI/UX Designs](#) (Placeholder) |
+| **Domain Model** | [View Domain Model](https://drive.google.com/file/d/1qlQETELNI8zWojMrI2GbCQXjUzENu9eq/view?usp=sharing) |
+| **Architecture** | [View Architecture Diagram](https://drive.google.com/file/d/13-XbXg1Q31u4pAhsZdx9QOW4dNwz5U54/view?usp=sharing) |
+| **Live Demo** | _Not deployed yet (coming soon)_ |
 
-| Tool | Purpose |
-| --- | --- |
-| .NET 9.0 (TargetFramework `net9.0`) | Backend runtime |
-| ASP.NET Boilerplate (ABP) 10.2.0 | Modular application framework |
-| ASP.NET Core | Web host and API |
-| Entity Framework Core 9.0.5 | ORM and migrations |
-| Npgsql EF Core Provider 9.0.4 | PostgreSQL support |
-| SQL Server EF Core Provider 9.0.5 | SQL Server support |
-| Swashbuckle.AspNetCore 8.1.2 | Swagger/OpenAPI tooling |
-| JWT Bearer Auth 9.0.5 | Token authentication |
-| Next.js 16.1.6 | Frontend framework |
-| React 19.2.3 | UI library |
-| antd-style 4.1.0 | Styling utilities |
-| TypeScript 5.x | Static typing |
-| xUnit 2.9.3 | Backend tests |
+---
 
-## Roles
+## 3. Core Use Cases
 
-Seeded roles found in the backend:
+### 👤 Product Builder / Founder
+* **Sign in** with GitHub.
+* **Define requirements** using a natural language prompt.
+* **Choose templates** and trigger generation.
+* **Access the live URL** once the automated build completes.
 
-| Feature | Host Admin | Tenant Admin |
-| --- | :---: | :---: |
-| Tenant management (`Pages.Tenants`) | Yes | No |
-| User management (`Pages.Users`) | Yes | Yes |
-| User activation (`Pages.Users.Activation`) | Yes | Yes |
-| Role management (`Pages.Roles`) | Yes | Yes |
+### 💻 Developer
+* **View history** of generated versions.
+* **Inspect commits** and architecture summaries.
+* **Refine apps** by providing follow-up prompts to the AI engine.
 
-## Features
+### ⚙️ Administrator
+* **Manage templates** and deployment settings.
+* **Monitor logs** and handle failed build queues.
+* **Track usage** and platform health.
 
-### Authentication
-- JWT token authentication (`/api/TokenAuth/Authenticate`)
-- Account registration service and tenant availability check
+---
 
-### Multi-Tenancy
-- Host and tenant roles with seeded admin users
-- Tenant availability endpoint
+## 4. Technical Specifications
 
-### Administration
-- User and role management services
-- Session info and configuration services
+### 4.1 Tech Stack
+| Component | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Backend** | .NET 9.0 / ABP Framework | Modular API, Multi-tenancy, & Auth |
+| **Frontend** | Next.js 16 / React 19 | User dashboard & Prompt interface |
+| **Database** | PostgreSQL / EF Core 9 | Relational data & Job tracking |
+| **AI Engine** | LLM Integration | Prompt parsing & Code generation |
+| **VCS** | GitHub API | Repository & Version management |
 
-### Data & Migrations
-- EF Core migrations in `aspnet-core/src/ABPGroup.EntityFrameworkCore/Migrations`
-- Separate migrator project for database initialization
+### 4.2 Suggested Database Entities
+To support the workflow, the system manages the following:
+* **Identity:** `Users`, `GitProfiles`
+* **Orchestration:** `AppRequests`, `PromptSessions`, `GeneratedProjects`
+* **Infrastructure:** `Repositories`, `BuildJobs`, `Deployments`, `DeploymentLogs`
+* **Assets:** `Templates`, `GeneratedArtifacts`
 
-### Frontend
-- Next.js App Router project in `frontend/`
-- Starter page in `frontend/src/app/page.tsx`
+---
 
-## Project Structure
+## 5. Functional Requirements
 
-```
+### 🛠 Generation Engine
+* Map natural language requirements to template capabilities.
+* Create frontend, backend, and database structures.
+* Generate project-specific `README` files and environment placeholders.
+* Validate file structure integrity before pushing to Git.
+
+### 🚀 GitHub & Deployment Pipeline
+* **Authentication:** Secure OAuth flow for GitHub.
+* **Automation:** Create repositories, manage branches, and push code.
+* **Deployment:** Trigger CI/CD workflows and track real-time status/logs.
+* **Feedback:** Present a "Success" page with the final application URL.
+
+---
+
+## 6. Project Structure
+```text
 .
-├── aspnet-core/
-│   ├── ABPGroup.sln
-│   ├── build/
-│   ├── docker/
-│   │   └── ng/
+├── aspnet-core/               # ABP Backend (C#)
 │   ├── src/
-│   │   ├── ABPGroup.Application/
-│   │   ├── ABPGroup.Core/
-│   │   ├── ABPGroup.EntityFrameworkCore/
-│   │   ├── ABPGroup.Migrator/
-│   │   ├── ABPGroup.Web.Core/
-│   │   └── ABPGroup.Web.Host/
-│   └── test/
-│       ├── ABPGroup.Tests/
-│       └── ABPGroup.Web.Tests/
-├── frontend/
-│   ├── .agents/skills/
-│   ├── public/
-│   └── src/app/
-├── _screenshots/
-├── LICENSE
+│   │   ├── PromptForge.Application/   # Logic for Prompt Parsing
+│   │   ├── PromptForge.Core/          # Domain Entities (Jobs, Projects)
+│   │   ├── PromptForge.EntityFrameworkCore/ # Database Migrations
+│   │   └── PromptForge.Web.Host/      # API Endpoints
+├── frontend/                  # Next.js App (TypeScript)
+│   ├── src/app/               # Prompt UI & Dashboard
+│   └── public/                # Static Assets
+├── _screenshots/              # UI Previews
 └── README.md
 ```
 
-## API Integration
-
-**Base URL**: `https://localhost:44311/`
-
-| Module | Base Path |
-| --- | --- |
-| Token Auth | `/api/TokenAuth/Authenticate` (POST) |
-| Account | `/api/services/app/Account/IsTenantAvailable` (POST) |
-
-## State Management
-
-No custom state management or providers were found. The frontend currently uses the default Next.js setup.
-
-## Getting Started
+## 7. Getting Started
 
 ### Prerequisites
-
-- .NET SDK 9.x
-- Node.js (for the Next.js frontend)
-- PostgreSQL (default) or SQL Server (alternative provider is included)
+* **.NET SDK 9.x**
+* **Node.js** (v20+)
+* **PostgreSQL**
 
 ### Installation
 
 ```bash
-# 1. Clone
+# 1. Clone the platform
 git clone <repository-url>
-cd abp-group
+cd PromptForge
 
-# 2. Backend restore
-dotnet restore aspnet-core/ABPGroup.sln
+# 2. Setup Backend
+dotnet restore aspnet-core/PromptForge.sln
 
-# 3. Frontend install
+# 3. Setup Frontend
 cd frontend
 npm install
 ```
 
-### Environment Variables
-
-No `.env.example` files were found. Configure backend settings in `appsettings.json`:
-
-| Variable | Description | Required |
-| --- | --- | :---: |
-| `ConnectionStrings:Default` | Database connection string (default is PostgreSQL) | Yes |
-| `App:ServerRootAddress` | Backend base URL | Yes |
-| `App:ClientRootAddress` | Frontend base URL | Yes |
-
-Frontend environment variables: none detected (placeholder for future additions).
-
 ### Running Locally
+To get the platform up and running in a development environment, follow these steps:
 
+1. Apply Database Migrations
+Before starting the API, ensure your PostgreSQL database is initialized and schema migrations are applied:
 ```bash
-# Backend
-dotnet run --project aspnet-core/src/ABPGroup.Web.Host/ABPGroup.Web.Host.csproj
-
-# Optional: run migrator to apply migrations
-dotnet run --project aspnet-core/src/ABPGroup.Migrator/ABPGroup.Migrator.csproj
-
-# Frontend (from frontend/)
+dotnet run --project aspnet-core/src/PromptForge.Migrator/PromptForge.Migrator.csproj
+```
+2. Start the Backend API
+Run the host project to start the Swagger UI and REST endpoints:
+```bash
+dotnet run --project aspnet-core/src/PromptForge.Web.Host/PromptForge.Web.Host.csproj
+```
+3. Start the Frontend Dashboard
+Open a new terminal window and start the Next.js development server:
+```bash
+cd frontend
 npm run dev
 ```
-
-### Test Credentials
-
-```
-Host Admin:
-  Email: admin@aspnetboilerplate.com
-  Password: 123qwe
-
-Tenant Admin:
-  Email: admin@defaulttenant.com
-  Password: 123qwe
-```
-
-## Building for Production
-
-```bash
-# Backend
-dotnet publish aspnet-core/src/ABPGroup.Web.Host/ABPGroup.Web.Host.csproj -c Release
-
-# Frontend
-cd frontend
-npm run build
-npm run start
-```
-
-## License
-
-MIT
