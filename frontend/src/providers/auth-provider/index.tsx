@@ -43,8 +43,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch(registerPending());
     try {
       const { tenantId, ...rest } = input;
-      const payload = tenantId === undefined ? rest : input;
-      await instance.post("/api/services/app/Account/Register", payload);
+      await instance.post(
+        "/api/services/app/Account/Register",
+        rest,
+        tenantId === undefined
+          ? undefined
+          : {
+              headers: {
+                "Abp.TenantId": String(tenantId),
+              },
+            }
+      );
       const user = await login(input.userName || input.emailAddress, input.password);
       if (user) {
         dispatch(registerSuccess(user));
