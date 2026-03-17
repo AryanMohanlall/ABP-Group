@@ -153,8 +153,9 @@ namespace ABPGroup.Controllers
             {
                 user = await GetOrCreateGitHubUserAsync(githubUser, githubAccessToken);
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.Error("GitHub user creation failed", ex);
                 return Redirect($"{clientRoot}/auth?error=user_creation_failed");
             }
 
