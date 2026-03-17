@@ -1,62 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SearchIcon, ChevronDownIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { ProjectCard, ProjectData } from "../ProjectCard";
 import { useStyles } from "./styles";
-
-const SAMPLE_PROJECTS: ProjectData[] = [
-  {
-    id: "1",
-    name: "TaskFlow Pro",
-    status: "Live",
-    framework: "Next.js",
-    language: "TypeScript",
-    updatedAt: "Updated 3 hours ago",
-    url: "taskflow-pro.vercel.app",
-  },
-  {
-    id: "2",
-    name: "ShopEasy",
-    status: "Generating",
-    framework: "React + Vite",
-    language: "TypeScript",
-    updatedAt: "Updated 12 minutes ago",
-  },
-  {
-    id: "3",
-    name: "DevPortfolio",
-    status: "Generated",
-    framework: "Vue",
-    language: "JavaScript",
-    updatedAt: "Updated 1 day ago",
-  },
-  {
-    id: "4",
-    name: "MealPlanner",
-    status: "Deploying",
-    framework: "Angular",
-    language: "TypeScript",
-    updatedAt: "Updated 28 minutes ago",
-  },
-  {
-    id: "5",
-    name: "BugTracker",
-    status: "Draft",
-    framework: "Next.js",
-    language: "TypeScript",
-    updatedAt: "Updated 5 days ago",
-  },
-  {
-    id: "6",
-    name: "FitCoach",
-    status: "Failed",
-    framework: "React + Vite",
-    language: "JavaScript",
-    updatedAt: "Updated 2 hours ago",
-  },
-];
+import {
+  ProjectFramework,
+  ProjectProgrammingLanguage,
+  ProjectStatus,
+  useProjectAction,
+  useProjectState,
+} from "@/providers/projects-provider";
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -64,6 +19,8 @@ interface DashboardPageProps {
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { styles, cx } = useStyles();
+  const { items, isPending, isError } = useProjectState();
+  const { fetchAll } = useProjectAction();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -78,7 +35,46 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     "Failed",
   ];
 
-  const filteredProjects = SAMPLE_PROJECTS.filter((project) => {
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const dashboardProjects = useMemo<ProjectData[]>(() => {
+    const statusMap: Record<ProjectStatus, ProjectData["status"]> = {
+      [ProjectStatus.Draft]: "Draft",
+      [ProjectStatus.PromptSubmitted]: "Generating",
+      [ProjectStatus.CodeGenerationInProgress]: "Generating",
+      [ProjectStatus.RepositoryPushInProgress]: "Deploying",
+      [ProjectStatus.Deployed]: "Live",
+      [ProjectStatus.Failed]: "Failed",
+      [ProjectStatus.Archived]: "Generated",
+    };
+
+    const frameworkMap: Record<ProjectFramework, string> = {
+      [ProjectFramework.NextJS]: "Next.js",
+      [ProjectFramework.ReactVite]: "React + Vite",
+      [ProjectFramework.Angular]: "Angular",
+      [ProjectFramework.Vue]: "Vue",
+      [ProjectFramework.DotNetBlazor]: ".NET Blazor",
+    };
+
+    const languageMap: Record<ProjectProgrammingLanguage, string> = {
+      [ProjectProgrammingLanguage.TypeScript]: "TypeScript",
+      [ProjectProgrammingLanguage.JavaScript]: "JavaScript",
+      [ProjectProgrammingLanguage.CSharp]: "C#",
+    };
+
+    return items.map((item) => ({
+      id: String(item.id),
+      name: item.name,
+      status: statusMap[item.status] ?? "Draft",
+      framework: frameworkMap[item.framework] ?? "Next.js",
+      language: languageMap[item.language] ?? "TypeScript",
+      updatedAt: `Updated ${new Date(item.updatedAt).toLocaleString()}`,
+    }));
+  }, [items]);
+
+  const filteredProjects = dashboardProjects.filter((project) => {
     const matchesSearch = project.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -159,7 +155,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         </div>
       </div>
 
-      {filteredProjects.length > 0 ? (
+      {isPending ? (
+        <div className={styles.emptyState}>Loading projects...</div>
+      ) : isError ? (
+        <div className={styles.emptyState}>Failed to load projects. Please try again.</div>
+      ) : filteredProjects.length > 0 ? (
         <motion.div
           variants={containerVariants}
           initial="hidden"
