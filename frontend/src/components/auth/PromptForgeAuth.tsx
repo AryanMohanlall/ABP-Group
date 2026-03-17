@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
-import { Button, Input, Divider } from 'antd';
+import { useState } from "react";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import { Button, Input, Divider } from "antd";
 import {
   usePageStyles,
   useCardStyles,
@@ -11,7 +11,7 @@ import {
   useSocialBtnStyles,
   useDividerStyles,
   useAuthStyles,
-} from './styles/style';
+} from "./styles/style";
 import {
   GitHubIcon,
   MailIcon,
@@ -20,11 +20,11 @@ import {
   ArrowLeftIcon,
   CheckCircleIcon,
   BrandingStackIcon,
-} from './icons';
-import { useAuthAction } from '@/providers/auth-provider';
+} from "./icons";
+import { useAuthAction, useAuthState } from "@/providers/auth-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Page = 'signin' | 'signup' | 'forgot';
+type Page = "signin" | "signup" | "forgot";
 
 interface InputProps {
   readonly icon: React.ReactNode;
@@ -32,8 +32,9 @@ interface InputProps {
   readonly placeholder: string;
   readonly value: string;
   readonly onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  readonly onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly showToggle?: boolean;
-  readonly confirmState?: 'idle' | 'match' | 'mismatch';
+  readonly confirmState?: "idle" | "match" | "mismatch";
 }
 
 interface SocialButtonProps {
@@ -49,9 +50,13 @@ interface PageProps {
 const decodeTenantId = (value: string | null) => {
   if (!value) return undefined;
   try {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
     const padding = normalized.length % 4;
-    const decoded = atob(padding ? normalized.padEnd(normalized.length + (4 - padding), '=') : normalized);
+    const decoded = atob(
+      padding
+        ? normalized.padEnd(normalized.length + (4 - padding), "=")
+        : normalized,
+    );
     const tenantId = Number.parseInt(decoded, 10);
     return Number.isNaN(tenantId) ? undefined : tenantId;
   } catch {
@@ -60,7 +65,16 @@ const decodeTenantId = (value: string | null) => {
 };
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
-function AuthInput({ icon, type = 'text', placeholder, value, onChange, showToggle, confirmState }: InputProps) {
+function AuthInput({
+  icon,
+  type = "text",
+  placeholder,
+  value,
+  onChange,
+  onKeyDown,
+  showToggle,
+  confirmState,
+}: InputProps) {
   const { styles } = useInputStyles();
   const prefix = <span className={styles.icon}>{icon}</span>;
 
@@ -71,8 +85,9 @@ function AuthInput({ icon, type = 'text', placeholder, value, onChange, showTogg
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onKeyDown={onKeyDown}
         className={styles.input}
-        status={confirmState === 'mismatch' ? 'error' : ''}
+        status={confirmState === "mismatch" ? "error" : ""}
       />
     );
   }
@@ -84,6 +99,7 @@ function AuthInput({ icon, type = 'text', placeholder, value, onChange, showTogg
       placeholder={placeholder}
       value={value}
       onChange={onChange}
+      onKeyDown={onKeyDown}
       className={styles.input}
     />
   );
@@ -126,15 +142,31 @@ function AuthLogo() {
 
 // ─── Sign In ──────────────────────────────────────────────────────────────────
 function SignInPage({ onSwitch }: PageProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [attempted, setAttempted] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const { login } = useAuthAction();
+  const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
 
   const handleSignIn = () => {
-    if (!email || !password) return;
+    setAttempted(true);
+    if (!email || !password) {
+      setValidationError("Please enter your email and password.");
+      return;
+    }
+    setValidationError("");
     void login(email, password);
   };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      handleSignIn();
+    }
+  };
+
+  const canSubmit = Boolean(email && password);
 
   return (
     <AuthCard>
@@ -154,30 +186,55 @@ function SignInPage({ onSwitch }: PageProps) {
           type="email"
           placeholder="Email address"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <AuthInput
           icon={<LockIcon />}
           placeholder="Password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={handleKeyDown}
           showToggle
         />
       </div>
 
+      {attempted && isError && (
+        <p className={styles.subtitle}>
+          Invalid credentials. Please try again.
+        </p>
+      )}
+      {attempted && validationError && (
+        <p className={styles.subtitle}>{validationError}</p>
+      )}
+
       <div className={styles.forgotRow}>
-        <button type="button" onClick={() => onSwitch('forgot')} className={styles.linkBtn}>
+        <button
+          type="button"
+          onClick={() => onSwitch("forgot")}
+          className={styles.linkBtn}
+        >
           Forgot password?
         </button>
       </div>
 
-      <Button block type="primary" className={styles.primaryBtn} onClick={handleSignIn}>
+      <Button
+        block
+        type="primary"
+        className={styles.primaryBtn}
+        onClick={handleSignIn}
+        loading={isPending}
+      >
         Sign in
       </Button>
 
       <p className={styles.switchText}>
-        Don&apos;t have an account?{' '}
-        <button type="button" onClick={() => onSwitch('signup')} className={styles.switchBtn}>
+        Don&apos;t have an account?{" "}
+        <button
+          type="button"
+          onClick={() => onSwitch("signup")}
+          className={styles.switchBtn}
+        >
           Sign up
         </button>
       </p>
@@ -187,21 +244,29 @@ function SignInPage({ onSwitch }: PageProps) {
 
 // ─── Sign Up ──────────────────────────────────────────────────────────────────
 const PASSWORD_CHECKS = [
-  { label: 'At least 8 characters', test: (pw: string) => pw.length >= 8 },
-  { label: 'One uppercase letter',  test: (pw: string) => /[A-Z]/.test(pw) },
-  { label: 'One number or symbol',  test: (pw: string) => /[\d\W]/.test(pw) },
+  { label: "At least 8 characters", test: (pw: string) => pw.length >= 8 },
+  { label: "One uppercase letter", test: (pw: string) => /[A-Z]/.test(pw) },
+  { label: "One number or symbol", test: (pw: string) => /[\d\W]/.test(pw) },
 ];
 
-function CheckItem({ label, met }: { readonly label: string; readonly met: boolean }) {
+function CheckItem({
+  label,
+  met,
+}: {
+  readonly label: string;
+  readonly met: boolean;
+}) {
   const { styles } = useAuthStyles();
   return (
     <div className={met ? styles.checkItemMet : styles.checkItemUnmet}>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <circle
-          cx="7" cy="7" r="6"
-          stroke={met ? '#2dd4a8' : '#2a3a4a'}
+          cx="7"
+          cy="7"
+          r="6"
+          stroke={met ? "#2dd4a8" : "#2a3a4a"}
           strokeWidth="1.2"
-          fill={met ? 'rgba(45,212,168,0.1)' : 'none'}
+          fill={met ? "rgba(45,212,168,0.1)" : "none"}
         />
         {met && (
           <path
@@ -220,22 +285,36 @@ function CheckItem({ label, met }: { readonly label: string; readonly met: boole
 }
 
 function SignUpPage({ onSwitch }: PageProps) {
-  const [name, setName] = useState('');
-  const [surname, setSurname] = useState('');
-  const [userName, setUserName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [userName, setUserName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [attempted, setAttempted] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const searchParams = useSearchParams();
-  const tenantId = decodeTenantId(searchParams.get('tenant'));
+  const tenantId = decodeTenantId(searchParams.get("tenant"));
   const { register } = useAuthAction();
+  const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
 
-  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
+  const passwordsMatch =
+    confirmPassword.length > 0 && password === confirmPassword;
   const finalUserName = userName || email;
+  const allChecksMet = PASSWORD_CHECKS.every(({ test }) => test(password));
 
   const handleRegister = () => {
-    if (!name || !surname || !finalUserName || !email || !password || !passwordsMatch) return;
+    setAttempted(true);
+    if (!name || !surname || !finalUserName || !email || !password) {
+      setValidationError("Please complete all required fields.");
+      return;
+    }
+    if (!allChecksMet || !passwordsMatch) {
+      setValidationError("Please meet all password requirements.");
+      return;
+    }
+    setValidationError("");
     void register({
       name,
       surname,
@@ -245,6 +324,22 @@ function SignUpPage({ onSwitch }: PageProps) {
       ...(tenantId !== undefined ? { tenantId } : {}),
     });
   };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      handleRegister();
+    }
+  };
+
+  const canSubmit = Boolean(
+    name &&
+    surname &&
+    finalUserName &&
+    email &&
+    password &&
+    passwordsMatch &&
+    allChecksMet,
+  );
 
   return (
     <AuthCard>
@@ -264,43 +359,55 @@ function SignUpPage({ onSwitch }: PageProps) {
           type="text"
           placeholder="First name"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <AuthInput
           icon={<UserIcon />}
           type="text"
           placeholder="Surname"
           value={surname}
-          onChange={e => setSurname(e.target.value)}
+          onChange={(e) => setSurname(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <AuthInput
           icon={<UserIcon />}
           type="text"
           placeholder="Username"
           value={userName}
-          onChange={e => setUserName(e.target.value)}
+          onChange={(e) => setUserName(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <AuthInput
           icon={<MailIcon />}
           type="email"
           placeholder="Email address"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <AuthInput
           icon={<LockIcon />}
           placeholder="Create a password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={handleKeyDown}
           showToggle
         />
         <AuthInput
           icon={<LockIcon />}
           placeholder="Confirm password"
           value={confirmPassword}
-          onChange={e => setConfirmPassword(e.target.value)}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          onKeyDown={handleKeyDown}
           showToggle
-          confirmState={confirmPassword.length > 0 ? (passwordsMatch ? 'match' : 'mismatch') : 'idle'}
+          confirmState={
+            confirmPassword.length > 0
+              ? passwordsMatch
+                ? "match"
+                : "mismatch"
+              : "idle"
+          }
         />
       </div>
 
@@ -315,20 +422,37 @@ function SignUpPage({ onSwitch }: PageProps) {
         </div>
       )}
 
-      <Button block type="primary" className={styles.primaryBtnMt} onClick={handleRegister}>
+      {attempted && isError && (
+        <p className={styles.subtitle}>
+          Registration failed. Please check your details.
+        </p>
+      )}
+      {attempted && validationError && (
+        <p className={styles.subtitle}>{validationError}</p>
+      )}
+
+      <Button
+        block
+        type="primary"
+        className={styles.primaryBtnMt}
+        onClick={handleRegister}
+      >
         Create account
       </Button>
 
       <p className={styles.termsText}>
-        By signing up, you agree to our{' '}
-        <span className={styles.termsLink}>Terms of Service</span>
-        {' '}and{' '}
+        By signing up, you agree to our{" "}
+        <span className={styles.termsLink}>Terms of Service</span> and{" "}
         <span className={styles.termsLink}>Privacy Policy</span>.
       </p>
 
       <p className={styles.switchText}>
-        Already have an account?{' '}
-        <button type="button" onClick={() => onSwitch('signin')} className={styles.switchBtn}>
+        Already have an account?{" "}
+        <button
+          type="button"
+          onClick={() => onSwitch("signin")}
+          className={styles.switchBtn}
+        >
           Sign in
         </button>
       </p>
@@ -338,13 +462,17 @@ function SignUpPage({ onSwitch }: PageProps) {
 
 // ─── Forgot Password ──────────────────────────────────────────────────────────
 function ForgotPasswordPage({ onSwitch }: PageProps) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const { styles } = useAuthStyles();
 
   return (
     <AuthCard>
-      <button type="button" onClick={() => onSwitch('signin')} className={styles.backBtn}>
+      <button
+        type="button"
+        onClick={() => onSwitch("signin")}
+        className={styles.backBtn}
+      >
         <ArrowLeftIcon /> Back to sign in
       </button>
 
@@ -355,12 +483,17 @@ function ForgotPasswordPage({ onSwitch }: PageProps) {
           </div>
           <h2 className={styles.successHeading}>Check your email</h2>
           <p className={styles.successText}>
-            We&apos;ve sent a password reset link to<br />
+            We&apos;ve sent a password reset link to
+            <br />
             <span className={styles.emailHighlight}>{email}</span>
           </p>
           <p className={styles.resendText}>
-            Didn&apos;t receive it?{' '}
-            <button type="button" onClick={() => setSent(false)} className={styles.switchBtn}>
+            Didn&apos;t receive it?{" "}
+            <button
+              type="button"
+              onClick={() => setSent(false)}
+              className={styles.switchBtn}
+            >
               Try again
             </button>
           </p>
@@ -370,7 +503,8 @@ function ForgotPasswordPage({ onSwitch }: PageProps) {
           <div className={styles.forgotHeaderBlock}>
             <h2 className={styles.forgotHeading}>Reset your password</h2>
             <p className={styles.forgotDescription}>
-              Enter the email address linked to your account and we&apos;ll send you a reset link.
+              Enter the email address linked to your account and we&apos;ll send
+              you a reset link.
             </p>
           </div>
 
@@ -379,14 +513,16 @@ function ForgotPasswordPage({ onSwitch }: PageProps) {
             type="email"
             placeholder="Email address"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <Button
             block
             type="primary"
             onClick={() => email && setSent(true)}
-            className={email ? styles.forgotSubmitBtn : styles.forgotSubmitBtnDisabled}
+            className={
+              email ? styles.forgotSubmitBtn : styles.forgotSubmitBtnDisabled
+            }
           >
             Send reset link
           </Button>
@@ -398,7 +534,7 @@ function ForgotPasswordPage({ onSwitch }: PageProps) {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function PromptForgeAuth() {
-  const [page, setPage] = useState<Page>('signin');
+  const [page, setPage] = useState<Page>("signin");
   const { styles } = usePageStyles();
 
   return (
@@ -408,9 +544,9 @@ export default function PromptForgeAuth() {
       <div className={styles.gridOverlay} />
 
       <div key={page} className={styles.cardWrapper}>
-        {page === 'signin'  && <SignInPage onSwitch={setPage} />}
-        {page === 'signup'  && <SignUpPage onSwitch={setPage} />}
-        {page === 'forgot'  && <ForgotPasswordPage onSwitch={setPage} />}
+        {page === "signin" && <SignInPage onSwitch={setPage} />}
+        {page === "signup" && <SignUpPage onSwitch={setPage} />}
+        {page === "forgot" && <ForgotPasswordPage onSwitch={setPage} />}
       </div>
 
       <div className={styles.branding}>
