@@ -1,25 +1,34 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
 
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; Max-Age=0; path=/`;
+}
+
 function GitHubCallback() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const accessToken = searchParams.get("accessToken");
-    const userId = searchParams.get("userId");
-    const expireInSeconds = searchParams.get("expireInSeconds");
-    const error = searchParams.get("error");
+    const raw = getCookie("github_auth_result");
 
-    if (error) {
-      router.replace(`/auth?error=${encodeURIComponent(error)}`);
+    if (!raw) {
+      router.replace("/auth?error=missing_token");
       return;
     }
+
+    deleteCookie("github_auth_result");
+
+    const [accessToken, userId, expireInSeconds] = raw.split("|");
 
     if (!accessToken || !userId) {
       router.replace("/auth?error=missing_token");
@@ -38,7 +47,7 @@ function GitHubCallback() {
     );
 
     router.replace("/");
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div

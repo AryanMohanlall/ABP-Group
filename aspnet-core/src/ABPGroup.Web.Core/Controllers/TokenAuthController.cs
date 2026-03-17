@@ -164,11 +164,15 @@ namespace ABPGroup.Controllers
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            return Redirect(
-                $"{clientRoot}/auth/github/callback" +
-                $"?accessToken={Uri.EscapeDataString(accessToken)}" +
-                $"&userId={user.Id}" +
-                $"&expireInSeconds={expireInSeconds}");
+            Response.Cookies.Append("github_auth_result", $"{accessToken}|{user.Id}|{expireInSeconds}", new CookieOptions
+            {
+                HttpOnly = false,
+                Secure = HttpContext.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = TimeSpan.FromMinutes(2)
+            });
+
+            return Redirect($"{clientRoot}/auth/github/callback");
         }
 
         private async Task<User> GetOrCreateGitHubUserAsync(GitHubUserInfo githubUser, string githubAccessToken)
