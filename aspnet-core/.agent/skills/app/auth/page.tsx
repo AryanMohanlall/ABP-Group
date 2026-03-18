@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import PromptForgeAuth from '@/components/auth/PromptForgeAuth';
 
 export const metadata = {
   title: 'Sign In — PromptForge',
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function AuthPage() {
-  redirect('/login');
+  return <PromptForgeAuth />;
 }
