@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import AntdProvider from '@/components/providers/AntdProvider';
-import { AppProviders } from '@/providers';
+import { AuthProvider } from '@/providers/auth-provider';
+import { ProjectProvider } from '@/providers/projects-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,9 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppProviders>
-          <AntdProvider>{children}</AntdProvider>
-        </AppProviders>
+        <AuthProvider>
+          <ProjectProvider>
+            <AntdProvider>{children}</AntdProvider>
+          </ProjectProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -31,6 +31,29 @@ const handleGitHubSignIn = () => {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type Page = "signin" | "forgot";
+
+interface InputProps {
+  icon: React.ReactNode;
+  type?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  showToggle?: boolean;
+  confirmState?: "match" | "mismatch" | undefined;
+}
+
+interface SocialButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
+interface PageProps {
+  onSwitch: (page: Page) => void;
+}
+
 // ─── Primitives ───────────────────────────────────────────────────────────────
 function AuthInput({
   icon,
