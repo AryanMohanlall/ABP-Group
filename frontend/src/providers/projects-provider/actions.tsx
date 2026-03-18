@@ -1,6 +1,8 @@
 import { createAction } from "redux-actions";
 import { IProjectItem, IProjectStateContext } from "./context";
 
+type ProjectStatePayload = Partial<IProjectStateContext>;
+
 export enum ProjectStateEnums {
   PROJECT_FETCH_ALL_PENDING = "PROJECT_FETCH_ALL_PENDING",
   PROJECT_FETCH_ALL_SUCCESS = "PROJECT_FETCH_ALL_SUCCESS",
