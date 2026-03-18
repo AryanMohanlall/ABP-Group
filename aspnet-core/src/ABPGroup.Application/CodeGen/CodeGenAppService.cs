@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
@@ -20,119 +21,471 @@ namespace ABPGroup.CodeGen
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
 
-        private const string GroqEndpoint = "https://api.groq.com/openai/v1/chat/completions";
-        private const string OutputBase    = "/app/GeneratedApps";
+        private const string GroqEndpoint  = "https://api.groq.com/openai/v1/chat/completions";
+        private const string DefaultOutput = "/app/GeneratedApps";
         private const int    MaxFixRetries = 3;
+
+        private readonly string _outputBase;
+        private readonly string _localCopyPath;
+        private readonly bool   _skipBuild;
 
         public CodeGenAppService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClientFactory = httpClientFactory;
             _configuration     = configuration;
+            _outputBase        = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
+            _localCopyPath     = _configuration["CodeGen:LocalCopyPath"];
+            _skipBuild         = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
         }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  MAIN ENTRY POINT
+        // ══════════════════════════════════════════════════════════════════════
 
         public async Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request)
         {
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
 
-            var projectName = string.IsNullOrWhiteSpace(request.Name) ? "UnnamedProject" : request.Name;
-            var projectDir  = Path.Combine(OutputBase, projectName);
+            var projectName = SanitizeDirName(request.Name);
+            var projectDir  = Path.Combine(_outputBase, projectName);
 
-            // ── 1. Generate initial files ──────────────────────────────────────
-            var result = await CallGroqAsync(GenerateSystemMessage(request), GenerateUserMessage(request));
+            // 1. Scaffold boilerplate (zero LLM tokens)
+            var scaffold = ScaffoldBoilerplate(request);
+            if (scaffold.Count > 0)
+                WriteFiles(projectDir, scaffold);
 
-            if (result == null || result.Files == null || result.Files.Count == 0)
-            {
-                Logger.Warn("First AI attempt returned no files — retrying.");
-                result = await CallGroqAsync(GenerateSystemMessage(request), GenerateUserMessage(request));
-                if (result == null || result.Files == null || result.Files.Count == 0)
-                    throw new Exception("AI returned no files after retry.");
-            }
+            // 2. Generate app-specific code via LLM
+            var result = await GenerateWithRetryAsync(request, scaffold);
 
+            // 3. Merge scaffold + LLM files, write to disk
+            result.Files = MergeFiles(scaffold, result.Files);
             WriteFiles(projectDir, result.Files);
 
-            // ── 2. Validate: npm install + npm run build ───────────────────────
+            // 4. Validate build & auto-fix
+            if (!_skipBuild)
+                await BuildAndFixAsync(projectDir, result);
+
+            // 5. Copy to local output path if configured
+            if (!string.IsNullOrWhiteSpace(_localCopyPath))
+            {
+                var localDir = Path.Combine(_localCopyPath, projectName);
+                CopyDirectory(projectDir, localDir);
+                Logger.Info($"Copied project to local path: {localDir}");
+            }
+
+            result.OutputPath         = projectDir;
+            result.GeneratedProjectId = request.Id;
+            Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
+            return result;
+        }
+
+        private async Task<CodeGenResult> GenerateWithRetryAsync(
+            CreateUpdateProjectDto request, List<GeneratedFile> scaffold)
+        {
+            var scaffoldedPaths = scaffold.Select(f => f.Path).ToHashSet();
+            var systemPrompt    = BuildSystemPrompt(request, scaffoldedPaths);
+            var userPrompt      = BuildUserPrompt(request);
+
+            var result = await CallGroqAsync(systemPrompt, userPrompt);
+            if (result?.Files != null && result.Files.Count > 0)
+                return result;
+
+            Logger.Warn("First LLM call returned no files — retrying.");
+            result = await CallGroqAsync(systemPrompt, userPrompt);
+            if (result?.Files == null || result.Files.Count == 0)
+                throw new InvalidOperationException("LLM returned no files after retry.");
+
+            return result;
+        }
+
+        private static List<GeneratedFile> MergeFiles(List<GeneratedFile> baseFiles, List<GeneratedFile> overrides)
+        {
+            var merged = new List<GeneratedFile>(baseFiles);
+            foreach (var f in overrides)
+            {
+                var idx = merged.FindIndex(x =>
+                    string.Equals(x.Path, f.Path, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0) merged[idx] = f;
+                else merged.Add(f);
+            }
+            return merged;
+        }
+
+        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result)
+        {
             for (var attempt = 1; attempt <= MaxFixRetries; attempt++)
             {
                 var (success, output) = await RunNpmBuildAsync(projectDir);
                 if (success)
                 {
-                    Logger.Info($"npm build passed on attempt {attempt}.");
-                    break;
+                    Logger.Info($"Build passed on attempt {attempt}.");
+                    return;
                 }
 
-                Logger.Warn($"npm build failed (attempt {attempt}/{MaxFixRetries}):\n{output}");
-
+                Logger.Warn($"Build failed (attempt {attempt}/{MaxFixRetries}).");
                 if (attempt == MaxFixRetries)
                 {
                     Logger.Error("Max fix retries reached. Returning last generated files.");
-                    break;
+                    return;
                 }
 
-                // ── 3. Ask AI to fix the errors ────────────────────────────────
                 var fixResult = await CallGroqAsync(
-                    GenerateFixSystemMessage(),
-                    GenerateFixUserMessage(result.Files, output));
+                    BuildFixSystemPrompt(),
+                    BuildFixUserPrompt(result.Files, output));
 
-                if (fixResult?.Files != null && fixResult.Files.Count > 0)
-                {
-                    // Overwrite only the files the AI returned
-                    WriteFiles(projectDir, fixResult.Files);
-                    foreach (var f in fixResult.Files)
-                    {
-                        var existing = result.Files.FirstOrDefault(x => x.Path == f.Path);
-                        if (existing != null) existing.Content = f.Content;
-                        else result.Files.Add(f);
-                    }
-                }
+                if (fixResult?.Files == null || fixResult.Files.Count == 0)
+                    continue;
+
+                WriteFiles(projectDir, fixResult.Files);
+                result.Files = MergeFiles(result.Files, fixResult.Files);
             }
-
-            result.OutputPath          = projectDir;
-            result.GeneratedProjectId  = request.Id;
-
-            Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
-            return result;
         }
 
-        // ── File writing ────────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        //  BOILERPLATE SCAFFOLDING — saves ~3k tokens per generation
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input)
+        {
+            if (input.Framework != Framework.NextJS)
+                return new List<GeneratedFile>();
+
+            var name     = input.Name ?? "my-app";
+            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
+            var auth      = input.IncludeAuth;
+
+            var files = new List<GeneratedFile>
+            {
+                MakePackageJson(name, auth, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud),
+                MakeTsConfig(),
+                MakeNextConfig(),
+                MakePostCssConfig(),
+                MakeRootLayout(name),
+                MakeGlobalsCss(),
+                MakeEnvExample(input.DatabaseOption),
+            };
+
+            if (usePrisma)
+                files.Add(MakePrismaSchema(input.DatabaseOption, auth));
+
+            if (auth)
+                files.Add(MakeAuthConfig());
+
+            return files;
+        }
+
+        private static GeneratedFile MakePackageJson(string name, bool auth, bool prisma, bool mongo)
+        {
+            var deps = new Dictionary<string, string>
+            {
+                ["next"]      = "^15.1.0",
+                ["react"]     = "^19.0.0",
+                ["react-dom"] = "^19.0.0"
+            };
+            if (prisma) deps["@prisma/client"] = "^6.0.0";
+            if (mongo)  deps["mongoose"]       = "^8.0.0";
+            if (auth)
+            {
+                deps["next-auth"] = "^5.0.0-beta.25";
+                deps["bcryptjs"]  = "^2.4.3";
+            }
+
+            var pkg = new Dictionary<string, object>
+            {
+                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
+                ["version"] = "0.1.0",
+                ["private"] = true,
+                ["scripts"] = new Dictionary<string, string>
+                {
+                    ["dev"]   = "next dev --turbopack",
+                    ["build"] = "next build",
+                    ["start"] = "next start",
+                    ["lint"]  = "next lint"
+                },
+                ["dependencies"] = deps,
+                ["devDependencies"] = new Dictionary<string, string>
+                {
+                    ["typescript"]          = "^5.7.0",
+                    ["@types/node"]         = "^22.0.0",
+                    ["@types/react"]        = "^19.0.0",
+                    ["@types/react-dom"]    = "^19.0.0",
+                    ["@tailwindcss/postcss"] = "^4.0.0",
+                    ["tailwindcss"]         = "^4.0.0",
+                    ["eslint"]              = "^9.0.0",
+                    ["eslint-config-next"]  = "^15.0.0"
+                }
+            };
+
+            return new GeneratedFile
+            {
+                Path    = "package.json",
+                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
+            };
+        }
+
+        private static GeneratedFile MakeTsConfig() => new GeneratedFile
+        {
+            Path = "tsconfig.json",
+            Content = @"{
+  ""compilerOptions"": {
+    ""target"": ""ES2017"",
+    ""lib"": [""dom"", ""dom.iterable"", ""esnext""],
+    ""allowJs"": true,
+    ""skipLibCheck"": true,
+    ""strict"": true,
+    ""noEmit"": true,
+    ""esModuleInterop"": true,
+    ""module"": ""esnext"",
+    ""moduleResolution"": ""bundler"",
+    ""resolveJsonModule"": true,
+    ""isolatedModules"": true,
+    ""jsx"": ""preserve"",
+    ""incremental"": true,
+    ""plugins"": [{ ""name"": ""next"" }],
+    ""paths"": { ""@/*"": [""./src/*""] }
+  },
+  ""include"": [""next-env.d.ts"", ""**/*.ts"", ""**/*.tsx"", "".next/types/**/*.ts""],
+  ""exclude"": [""node_modules""]
+}"
+        };
+
+        private static GeneratedFile MakeNextConfig() => new GeneratedFile
+        {
+            Path    = "next.config.ts",
+            Content = "import type { NextConfig } from 'next';\n\nconst nextConfig: NextConfig = {};\n\nexport default nextConfig;\n"
+        };
+
+        private static GeneratedFile MakePostCssConfig() => new GeneratedFile
+        {
+            Path    = "postcss.config.mjs",
+            Content = "const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n"
+        };
+
+        private static GeneratedFile MakeRootLayout(string appName) => new GeneratedFile
+        {
+            Path = "src/app/layout.tsx",
+            Content = $@"import type {{ Metadata }} from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {{
+  title: '{appName.Replace("'", "\\'")}',
+  description: 'Generated by PromptForge',
+}};
+
+export default function RootLayout({{ children }}: {{ children: React.ReactNode }}) {{
+  return (
+    <html lang=""en"">
+      <body>{{children}}</body>
+    </html>
+  );
+}}
+"
+        };
+
+        private static GeneratedFile MakeGlobalsCss() => new GeneratedFile
+        {
+            Path    = "src/app/globals.css",
+            Content = "@import 'tailwindcss';\n"
+        };
+
+        private static GeneratedFile MakeEnvExample(DatabaseOption db) => new GeneratedFile
+        {
+            Path = ".env.example",
+            Content = db == DatabaseOption.MongoCloud
+                ? "MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/mydb\nNEXTAUTH_SECRET=change-me\nNEXTAUTH_URL=http://localhost:3000\n"
+                : "DATABASE_URL=postgresql://user:pass@localhost:5432/mydb\nNEXTAUTH_SECRET=change-me\nNEXTAUTH_URL=http://localhost:3000\n"
+        };
+
+        private static GeneratedFile MakePrismaSchema(DatabaseOption db, bool auth) => new GeneratedFile
+        {
+            Path = "prisma/schema.prisma",
+            Content = $@"generator client {{
+  provider = ""prisma-client-js""
+}}
+
+datasource db {{
+  provider = ""postgresql""
+  url      = env(""DATABASE_URL"")
+}}{(auth ? @"
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}" : "")}
+"
+        };
+
+        private static GeneratedFile MakeAuthConfig() => new GeneratedFile
+        {
+            Path = "src/lib/auth.ts",
+            Content = @"import NextAuth from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (credentials?.email && credentials?.password) {
+          return { id: '1', email: credentials.email as string, name: 'User' };
+        }
+        return null;
+      },
+    }),
+  ],
+  session: { strategy: 'jwt' },
+  pages: { signIn: '/login' },
+});
+"
+        };
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  PROMPT BUILDERS — lean and targeted
+        // ══════════════════════════════════════════════════════════════════════
+
+        private string BuildSystemPrompt(CreateUpdateProjectDto input, HashSet<string> scaffolded)
+        {
+            var framework = FormatFramework(input.Framework);
+            var db        = FormatDatabase(input.DatabaseOption);
+            var auth      = input.IncludeAuth ? "next-auth v5 (pre-configured in src/lib/auth.ts)" : "none";
+
+            var scaffoldNote = scaffolded.Count > 0
+                ? $"\nThese files are ALREADY generated — do NOT output them:\n{string.Join(", ", scaffolded)}"
+                : "";
+
+            var stackRules = input.Framework switch
+            {
+                Framework.NextJS     => "- Next.js 15 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
+                Framework.ReactVite  => "- React 19, Vite, Tailwind CSS v4, react-router-dom v7",
+                Framework.Angular    => "- Angular 19 standalone components, signals",
+                Framework.Vue        => "- Vue 3 Composition API, Vite, Tailwind CSS v4",
+                _                    => "- Follow framework best practices"
+            };
+
+            return $@"You are a code generator. Output ONLY files. No markdown, no explanations, no commentary.
+{scaffoldNote}
+
+Stack: {framework} | TypeScript strict | {db} | Auth: {auth}
+{stackRules}
+- Every file COMPLETE — no TODOs, no placeholders, no ""..."", no truncation
+- Must compile: npm install && npm run build
+
+Format:
+===ARCHITECTURE===
+One sentence
+===END ARCHITECTURE===
+===MODULES===
+comma,separated,names
+===END MODULES===
+===FILE===
+path/to/file.tsx
+===CONTENT===
+<complete file content>
+===END FILE===";
+        }
+
+        private static string BuildUserPrompt(CreateUpdateProjectDto input) =>
+            $"Build: {input.Prompt ?? "a starter app"}\nProject: {input.Name ?? "my-app"}";
+
+        private static string BuildFixSystemPrompt() =>
+            "You fix build errors. Return ONLY changed files. Complete file contents, not diffs. No explanations.\n===FILE===\npath\n===CONTENT===\n<fixed file>\n===END FILE===";
+
+        private static string BuildFixUserPrompt(List<GeneratedFile> files, string buildOutput)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("BUILD ERRORS:");
+            sb.AppendLine(buildOutput.Length > 4000 ? buildOutput.Substring(0, 4000) : buildOutput);
+
+            // Identify files referenced in error output
+            var errorFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in buildOutput.Split('\n'))
+            {
+                var match = Regex.Match(line, @"(?:\.\/)?([a-zA-Z0-9_\-\/\.]+\.(?:tsx?|jsx?|mjs|css))");
+                if (match.Success) errorFiles.Add(match.Groups[1].Value);
+            }
+
+            sb.AppendLine("\nFILES:");
+            foreach (var f in files)
+            {
+                sb.AppendLine($"\n--- {f.Path} ---");
+                // Full content for error-referenced files; brief preview for others
+                var isReferenced = errorFiles.Any(e =>
+                    f.Path.EndsWith(e, StringComparison.OrdinalIgnoreCase) ||
+                    f.Path.Contains(e, StringComparison.OrdinalIgnoreCase));
+
+                if (isReferenced)
+                    sb.AppendLine(f.Content);
+                else if (f.Content.Length > 200)
+                    sb.AppendLine(f.Content.Substring(0, 200)).AppendLine("...(truncated)");
+                else
+                    sb.AppendLine(f.Content);
+            }
+            return sb.ToString();
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  FILE I/O
+        // ══════════════════════════════════════════════════════════════════════
+
         private void WriteFiles(string projectDir, List<GeneratedFile> files)
         {
             foreach (var file in files)
             {
-                var normalizedPath = file.Path
+                var normalized = file.Path
                     .Replace("/",  Path.DirectorySeparatorChar.ToString())
                     .Replace("\\", Path.DirectorySeparatorChar.ToString());
-                var fullPath = Path.Combine(projectDir, normalizedPath);
+                var fullPath = Path.Combine(projectDir, normalized);
                 var dir = Path.GetDirectoryName(fullPath);
 
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
 
                 File.WriteAllText(fullPath, file.Content, Encoding.UTF8);
-                Logger.Debug($"Written: {fullPath}");
             }
         }
 
-        // ── npm install + npm run build ─────────────────────────────────────────
+        private static void CopyDirectory(string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+
+            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath(sourceDir, file);
+                var destFile     = Path.Combine(destDir, relativePath);
+                var destFileDir  = Path.GetDirectoryName(destFile);
+
+                if (!string.IsNullOrEmpty(destFileDir) && !Directory.Exists(destFileDir))
+                    Directory.CreateDirectory(destFileDir);
+
+                File.Copy(file, destFile, overwrite: true);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  NPM BUILD
+        // ══════════════════════════════════════════════════════════════════════
+
         private async Task<(bool success, string output)> RunNpmBuildAsync(string projectDir)
         {
             if (!Directory.Exists(projectDir))
-                return (false, $"Project directory does not exist: {projectDir}");
+                return (false, $"Directory missing: {projectDir}");
 
             var sb = new StringBuilder();
 
-            // npm install
-            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, timeoutSeconds: 120);
-            sb.AppendLine("=== npm install ===");
-            sb.AppendLine(installOut);
+            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, 120);
+            sb.AppendLine("=== npm install ===").AppendLine(installOut);
+            if (installCode != 0) return (false, sb.ToString());
 
-            if (installCode != 0)
-                return (false, sb.ToString());
-
-            // npm run build
-            var (buildCode, buildOut) = await RunProcessAsync("npm", "run build", projectDir, timeoutSeconds: 180);
-            sb.AppendLine("=== npm run build ===");
-            sb.AppendLine(buildOut);
+            var (buildCode, buildOut) = await RunProcessAsync("npm", "run build", projectDir, 180);
+            sb.AppendLine("=== npm run build ===").AppendLine(buildOut);
 
             return (buildCode == 0, sb.ToString());
         }
@@ -159,19 +512,20 @@ namespace ABPGroup.CodeGen
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            var timeout = TimeSpan.FromSeconds(timeoutSeconds);
-            var finished = await Task.Run(() => process.WaitForExit((int)timeout.TotalMilliseconds));
-
+            var finished = await Task.Run(() => process.WaitForExit(timeoutSeconds * 1000));
             if (!finished)
             {
                 process.Kill(entireProcessTree: true);
-                return (-1, $"Process timed out after {timeoutSeconds}s.\n{output}");
+                return (-1, $"Timed out after {timeoutSeconds}s.\n{output}");
             }
 
             return (process.ExitCode, output.ToString());
         }
 
-        // ── Groq API call ───────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        //  GROQ API — 32k tokens, low temperature
+        // ══════════════════════════════════════════════════════════════════════
+
         private async Task<CodeGenResult> CallGroqAsync(string systemMessage, string userMessage)
         {
             var apiKey = _configuration["Groq:ApiKey"];
@@ -188,38 +542,39 @@ namespace ABPGroup.CodeGen
                     new { role = "system", content = systemMessage },
                     new { role = "user",   content = userMessage   }
                 },
-                max_tokens  = 8192,
-                temperature = 0.2
+                max_tokens  = 32768,
+                temperature = 0.1
             };
-
-            var json    = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", apiKey);
-            httpClient.Timeout = TimeSpan.FromMinutes(3);
+            httpClient.Timeout = TimeSpan.FromMinutes(5);
 
-            var response       = await httpClient.PostAsync(GroqEndpoint, content);
-            var responseString = await response.Content.ReadAsStringAsync();
+            var response = await httpClient.PostAsync(GroqEndpoint,
+                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+            var body = await response.Content.ReadAsStringAsync();
 
-            Logger.Warn($"RAW GROQ [{(int)response.StatusCode}]: {responseString.Substring(0, Math.Min(300, responseString.Length))}");
+            Logger.Debug($"Groq [{(int)response.StatusCode}]: {body.Substring(0, Math.Min(300, body.Length))}");
 
             if (!response.IsSuccessStatusCode)
             {
-                Logger.Error($"Groq API error {(int)response.StatusCode}: {responseString}");
+                Logger.Error($"Groq API error {(int)response.StatusCode}: {body}");
                 return null;
             }
 
-            return ParseGroqResponse(responseString);
+            return ParseGroqResponse(body);
         }
 
-        // ── Response parsing ────────────────────────────────────────────────────
-        private CodeGenResult ParseGroqResponse(string responseString)
+        // ══════════════════════════════════════════════════════════════════════
+        //  RESPONSE PARSING
+        // ══════════════════════════════════════════════════════════════════════
+
+        private CodeGenResult ParseGroqResponse(string json)
         {
             try
             {
-                using var doc = JsonDocument.Parse(responseString);
+                using var doc = JsonDocument.Parse(json);
                 var text = doc.RootElement
                     .GetProperty("choices")[0]
                     .GetProperty("message")
@@ -228,16 +583,16 @@ namespace ABPGroup.CodeGen
 
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    Logger.Error("Groq content is empty.");
+                    Logger.Error("Groq returned empty content.");
                     return null;
                 }
 
-                Logger.Info($"Groq content length: {text.Length} chars");
+                Logger.Info($"LLM response: {text.Length} chars");
                 return ParseDelimitedResponse(text);
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to parse Groq response: {ex.Message}");
+                Logger.Error($"Parse error: {ex.Message}");
                 return null;
             }
         }
@@ -261,129 +616,64 @@ namespace ABPGroup.CodeGen
                 result.ModuleList = text.Substring(modStart + 13, modEnd - modStart - 13)
                     .Trim().Split(',').Select(m => m.Trim()).Where(m => m.Length > 0).ToList();
 
-            var searchFrom = 0;
+            var pos = 0;
             while (true)
             {
-                var fileStart = text.IndexOf("===FILE===", searchFrom, StringComparison.Ordinal);
+                var fileStart = text.IndexOf("===FILE===", pos, StringComparison.Ordinal);
                 if (fileStart < 0) break;
 
                 var contentMarker = text.IndexOf("===CONTENT===", fileStart, StringComparison.Ordinal);
                 if (contentMarker < 0) break;
 
-                var fileEnd  = text.IndexOf("===END FILE===", contentMarker, StringComparison.Ordinal);
-                var path     = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
-                var filecontent = fileEnd >= 0
+                var fileEnd = text.IndexOf("===END FILE===", contentMarker, StringComparison.Ordinal);
+                var path    = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
+                var content = fileEnd >= 0
                     ? text.Substring(contentMarker + 13, fileEnd - contentMarker - 13).Trim()
                     : text.Substring(contentMarker + 13).Trim();
 
                 if (!string.IsNullOrWhiteSpace(path))
-                    result.Files.Add(new GeneratedFile { Path = path, Content = filecontent });
+                    result.Files.Add(new GeneratedFile { Path = path, Content = content });
 
-                searchFrom = fileEnd >= 0 ? fileEnd + 14 : text.Length;
+                pos = fileEnd >= 0 ? fileEnd + 14 : text.Length;
             }
 
             Logger.Info($"Parsed {result.Files.Count} files.");
             return result.Files.Count > 0 ? result : null;
         }
 
-        // ── Prompt builders ─────────────────────────────────────────────────────
-        private string GenerateSystemMessage(CreateUpdateProjectDto input)
+        // ══════════════════════════════════════════════════════════════════════
+        //  FORMATTERS
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static string SanitizeDirName(string name)
         {
-            var framework = FormatFramework(input.Framework);
-            var language  = FormatLanguage(input.Language);
-            var database  = FormatDatabase(input.DatabaseOption);
-            var auth      = input.IncludeAuth ? "next-auth v5 with credentials + JWT" : "none";
+            if (string.IsNullOrWhiteSpace(name))
+                return "unnamed-project";
 
-            return $@"You are a senior full-stack developer. Generate a production-ready {framework} application.
+            // Replace spaces with hyphens, strip invalid path chars, collapse multiple hyphens
+            var safe = Regex.Replace(name.Trim(), @"[^\w\-.]", "-");
+            safe = Regex.Replace(safe, @"-{2,}", "-").Trim('-');
 
-Stack: {framework} | {language} | {database} | Auth: {auth}
+            // Cap length to avoid filesystem path limits
+            if (safe.Length > 80)
+                safe = safe.Substring(0, 80).TrimEnd('-');
 
-Rules:
-- Every file must be complete and runnable — no TODOs, no placeholders
-- Use React 19 (useActionState not useFormState), next.config.ts (not .js)
-- Turbopack is default — no webpack config
-- The app MUST compile with zero errors when running: npm install && npm run build
-
-Respond in EXACTLY this format. No JSON. No markdown. No extra text:
-
-===ARCHITECTURE===
-One or two sentences describing what was built.
-===END ARCHITECTURE===
-
-===MODULES===
-comma,separated,module,names
-===END MODULES===
-
-===FILE===
-package.json
-===CONTENT===
-{{full file content here}}
-===END FILE===
-
-===FILE===
-tsconfig.json
-===CONTENT===
-{{full file content here}}
-===END FILE===
-
-Generate as many files as needed. Every file must have complete, working content.";
+            return string.IsNullOrWhiteSpace(safe) ? "unnamed-project" : safe.ToLowerInvariant();
         }
 
-        private string GenerateUserMessage(CreateUpdateProjectDto input)
-        {
-            var prompt = input.Prompt ?? string.Empty;
-            var name   = string.IsNullOrWhiteSpace(input.Name) ? "Unnamed Project" : input.Name;
-            return $"Build this app: {prompt}\nProject name: {name}";
-        }
-
-        private static string GenerateFixSystemMessage() =>
-            @"You are a senior full-stack developer fixing build errors in a generated project.
-You will be given the current files and the npm build error output.
-Return ONLY the files that need to be fixed in the same delimiter format:
-
-===FILE===
-path/to/file
-===CONTENT===
-{complete fixed file content}
-===END FILE===
-
-Fix ALL errors. Return complete file contents, not diffs. No explanations.";
-
-        private static string GenerateFixUserMessage(List<GeneratedFile> files, string buildOutput)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("Build failed with these errors:");
-            sb.AppendLine(buildOutput.Length > 3000 ? buildOutput.Substring(0, 3000) : buildOutput);
-            sb.AppendLine("\nCurrent files:");
-            foreach (var f in files)
-            {
-                sb.AppendLine($"\n--- {f.Path} ---");
-                var snippet = f.Content.Length > 500 ? f.Content.Substring(0, 500) + "..." : f.Content;
-                sb.AppendLine(snippet);
-            }
-            return sb.ToString();
-        }
-
-        private static string FormatFramework(Framework framework) => framework switch
+        private static string FormatFramework(Framework fw) => fw switch
         {
             Framework.ReactVite    => "React (Vite)",
             Framework.Angular      => "Angular",
             Framework.Vue          => "Vue",
             Framework.DotNetBlazor => ".NET Blazor",
-            _                      => "Next.js 16.1 (App Router)"
+            _                      => "Next.js 15 (App Router)"
         };
 
-        private static string FormatLanguage(ProgrammingLanguage language) => language switch
-        {
-            ProgrammingLanguage.JavaScript => "JavaScript",
-            ProgrammingLanguage.CSharp     => "C#",
-            _                              => "TypeScript (strict)"
-        };
-
-        private static string FormatDatabase(DatabaseOption option) => option switch
+        private static string FormatDatabase(DatabaseOption opt) => opt switch
         {
             DatabaseOption.MongoCloud => "MongoDB via Mongoose",
-            _                         => "PostgreSQL via Prisma"
+            _                        => "PostgreSQL via Prisma"
         };
     }
 }
