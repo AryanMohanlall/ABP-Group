@@ -24,6 +24,18 @@ namespace ABPGroup.Authentication.External.GitHub
 
     public class GitHubApiService : ITransientDependency
     {
+        public class GitHubCommitFile
+        {
+            public string Path { get; set; }
+            public string ContentBase64 { get; set; }
+        }
+
+        public class GitHubCommitPushResult
+        {
+            public string Branch { get; set; }
+            public string CommitSha { get; set; }
+        }
+
         private readonly IHttpClientFactory _httpClientFactory;
         private const string GitHubApiVersion = "2022-11-28";
 
@@ -284,6 +296,371 @@ namespace ABPGroup.Authentication.External.GitHub
             return repository;
         }
 
+        public async Task<string> GetCurrentUserLoginAsync(string userAccessToken)
+        {
+            if (string.IsNullOrWhiteSpace(userAccessToken))
+            {
+                throw new ArgumentException("User GitHub access token is required.");
+            }
+
+            var client = _httpClientFactory.CreateClient();
+            var request = BuildGitHubRequest(HttpMethod.Get, "https://api.github.com/user", userAccessToken);
+            var response = await client.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub user lookup failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<GitHubApiUserResponse>();
+            if (string.IsNullOrWhiteSpace(user?.Login))
+            {
+                throw new Exception("GitHub user lookup did not return login.");
+            }
+
+            return user.Login;
+        }
+
+        public async Task<GitHubRepositoryInfo> GetRepositoryWithUserTokenAsync(string userAccessToken, string owner, string repositoryName)
+        {
+            if (string.IsNullOrWhiteSpace(userAccessToken))
+            {
+                throw new ArgumentException("User GitHub access token is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repositoryName))
+            {
+                throw new ArgumentException("Repository owner and name are required.");
+            }
+
+            var client = _httpClientFactory.CreateClient();
+            var request = BuildGitHubRequest(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repositoryName}",
+                userAccessToken);
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub repository lookup failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var repository = await response.Content.ReadFromJsonAsync<GitHubRepositoryInfo>();
+            if (repository == null)
+            {
+                throw new Exception("GitHub repository lookup response was empty.");
+            }
+
+            return repository;
+        }
+
+        public async Task<GitHubCommitPushResult> CommitFilesToBranchAsync(
+            string userAccessToken,
+            string owner,
+            string repositoryName,
+            string branch,
+            string commitMessage,
+            List<GitHubCommitFile> files)
+        {
+            if (string.IsNullOrWhiteSpace(userAccessToken))
+            {
+                throw new ArgumentException("User GitHub access token is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(owner))
+            {
+                throw new ArgumentException("Repository owner is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(repositoryName))
+            {
+                throw new ArgumentException("Repository name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(branch))
+            {
+                branch = "main";
+            }
+
+            if (files == null || files.Count == 0)
+            {
+                throw new ArgumentException("At least one file is required for commit.");
+            }
+
+            var client = _httpClientFactory.CreateClient();
+
+            var resolvedBranch = await EnsureBranchExistsAsync(client, userAccessToken, owner, repositoryName, branch);
+            var headRef = await GetRefAsync(client, userAccessToken, owner, repositoryName, resolvedBranch);
+            var headCommitSha = headRef.Object.Sha;
+
+            var commitResponse = await GetCommitAsync(client, userAccessToken, owner, repositoryName, headCommitSha);
+            var baseTreeSha = commitResponse.Tree.Sha;
+
+            var treeEntries = new List<object>();
+            foreach (var file in files)
+            {
+                var blobSha = await CreateBlobAsync(client, userAccessToken, owner, repositoryName, file.ContentBase64);
+                treeEntries.Add(new
+                {
+                    path = file.Path,
+                    mode = "100644",
+                    type = "blob",
+                    sha = blobSha
+                });
+            }
+
+            var newTreeSha = await CreateTreeAsync(client, userAccessToken, owner, repositoryName, baseTreeSha, treeEntries);
+            var newCommitSha = await CreateCommitAsync(
+                client,
+                userAccessToken,
+                owner,
+                repositoryName,
+                string.IsNullOrWhiteSpace(commitMessage) ? "chore: add generated project files" : commitMessage,
+                newTreeSha,
+                headCommitSha);
+
+            await UpdateRefAsync(client, userAccessToken, owner, repositoryName, resolvedBranch, newCommitSha);
+
+            return new GitHubCommitPushResult
+            {
+                Branch = resolvedBranch,
+                CommitSha = newCommitSha
+            };
+        }
+
+        private async Task<string> EnsureBranchExistsAsync(HttpClient client, string token, string owner, string repo, string branch)
+        {
+            var escapedBranch = Uri.EscapeDataString(branch);
+            var existingBranchResponse = await client.SendAsync(BuildGitHubRequest(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repo}/git/ref/heads/{escapedBranch}",
+                token));
+
+            if (existingBranchResponse.IsSuccessStatusCode)
+            {
+                return branch;
+            }
+
+            if (existingBranchResponse.StatusCode != System.Net.HttpStatusCode.NotFound)
+            {
+                var errorBody = await existingBranchResponse.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub branch lookup failed: {(int)existingBranchResponse.StatusCode} {errorBody}");
+            }
+
+            var repoResponse = await client.SendAsync(BuildGitHubRequest(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repo}",
+                token));
+            if (!repoResponse.IsSuccessStatusCode)
+            {
+                var repoError = await repoResponse.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub repository lookup failed: {(int)repoResponse.StatusCode} {repoError}");
+            }
+
+            var repoInfo = await repoResponse.Content.ReadFromJsonAsync<GitHubRepositoryDetails>();
+            var defaultBranch = repoInfo?.DefaultBranch;
+            if (string.IsNullOrWhiteSpace(defaultBranch))
+            {
+                throw new Exception("GitHub repository did not return a default branch.");
+            }
+
+            var defaultRef = await GetRefAsync(client, token, owner, repo, defaultBranch);
+            var createRefRequest = BuildGitHubRequest(
+                HttpMethod.Post,
+                $"https://api.github.com/repos/{owner}/{repo}/git/refs",
+                token);
+            createRefRequest.Content = JsonContent.Create(new
+            {
+                @ref = $"refs/heads/{branch}",
+                sha = defaultRef.Object.Sha
+            });
+
+            var createRefResponse = await client.SendAsync(createRefRequest);
+            if (!createRefResponse.IsSuccessStatusCode)
+            {
+                var createRefError = await createRefResponse.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub branch creation failed: {(int)createRefResponse.StatusCode} {createRefError}");
+            }
+
+            return branch;
+        }
+
+        private async Task<GitHubRefResponse> GetRefAsync(HttpClient client, string token, string owner, string repo, string branch)
+        {
+            var escapedBranch = Uri.EscapeDataString(branch);
+            var response = await client.SendAsync(BuildGitHubRequest(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repo}/git/ref/heads/{escapedBranch}",
+                token));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub ref lookup failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var gitRef = await response.Content.ReadFromJsonAsync<GitHubRefResponse>();
+            if (gitRef?.Object?.Sha == null)
+            {
+                throw new Exception("GitHub ref response did not include a commit sha.");
+            }
+
+            return gitRef;
+        }
+
+        private async Task<GitHubCommitResponse> GetCommitAsync(HttpClient client, string token, string owner, string repo, string commitSha)
+        {
+            var response = await client.SendAsync(BuildGitHubRequest(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repo}/git/commits/{commitSha}",
+                token));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub commit lookup failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var commit = await response.Content.ReadFromJsonAsync<GitHubCommitResponse>();
+            if (commit?.Tree?.Sha == null)
+            {
+                throw new Exception("GitHub commit response did not include a tree sha.");
+            }
+
+            return commit;
+        }
+
+        private async Task<string> CreateBlobAsync(HttpClient client, string token, string owner, string repo, string base64Content)
+        {
+            var request = BuildGitHubRequest(
+                HttpMethod.Post,
+                $"https://api.github.com/repos/{owner}/{repo}/git/blobs",
+                token);
+            request.Content = JsonContent.Create(new
+            {
+                content = base64Content,
+                encoding = "base64"
+            });
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub blob creation failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var blob = await response.Content.ReadFromJsonAsync<GitHubObjectInfo>();
+            if (blob == null || string.IsNullOrWhiteSpace(blob.Sha))
+            {
+                throw new Exception("GitHub blob creation response did not include sha.");
+            }
+
+            return blob.Sha;
+        }
+
+        private async Task<string> CreateTreeAsync(
+            HttpClient client,
+            string token,
+            string owner,
+            string repo,
+            string baseTreeSha,
+            List<object> treeEntries)
+        {
+            var request = BuildGitHubRequest(
+                HttpMethod.Post,
+                $"https://api.github.com/repos/{owner}/{repo}/git/trees",
+                token);
+            request.Content = JsonContent.Create(new
+            {
+                base_tree = baseTreeSha,
+                tree = treeEntries
+            });
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub tree creation failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var tree = await response.Content.ReadFromJsonAsync<GitHubTreeResponse>();
+            if (tree == null || string.IsNullOrWhiteSpace(tree.Sha))
+            {
+                throw new Exception("GitHub tree creation response did not include sha.");
+            }
+
+            return tree.Sha;
+        }
+
+        private async Task<string> CreateCommitAsync(
+            HttpClient client,
+            string token,
+            string owner,
+            string repo,
+            string message,
+            string treeSha,
+            string parentSha)
+        {
+            var request = BuildGitHubRequest(
+                HttpMethod.Post,
+                $"https://api.github.com/repos/{owner}/{repo}/git/commits",
+                token);
+            request.Content = JsonContent.Create(new
+            {
+                message,
+                tree = treeSha,
+                parents = new[] { parentSha }
+            });
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub commit creation failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var commit = await response.Content.ReadFromJsonAsync<GitHubObjectInfo>();
+            if (commit == null || string.IsNullOrWhiteSpace(commit.Sha))
+            {
+                throw new Exception("GitHub commit response did not include sha.");
+            }
+
+            return commit.Sha;
+        }
+
+        private async Task UpdateRefAsync(HttpClient client, string token, string owner, string repo, string branch, string commitSha)
+        {
+            var escapedBranch = Uri.EscapeDataString(branch);
+            var request = BuildGitHubRequest(
+                HttpMethod.Patch,
+                $"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{escapedBranch}",
+                token);
+            request.Content = JsonContent.Create(new
+            {
+                sha = commitSha,
+                force = false
+            });
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub ref update failed: {(int)response.StatusCode} {errorBody}");
+            }
+        }
+
+        private HttpRequestMessage BuildGitHubRequest(HttpMethod method, string url, string token)
+        {
+            var request = new HttpRequestMessage(method, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("PromptForge", "1.0"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            request.Headers.Add("X-GitHub-Api-Version", GitHubApiVersion);
+            return request;
+        }
+
         private static string CreateGitHubAppJwt(string appId, string privateKeyPem)
         {
             if (string.IsNullOrWhiteSpace(appId))
@@ -297,23 +674,25 @@ namespace ABPGroup.Authentication.External.GitHub
             }
 
             var normalizedPem = privateKeyPem.Replace("\\n", "\n").Trim();
+            RSAParameters rsaParameters;
             using (var rsa = RSA.Create())
             {
                 rsa.ImportFromPem(normalizedPem.ToCharArray());
-
-                var credentials = new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256);
-                var now = DateTimeOffset.UtcNow;
-
-                var claims = new List<Claim>
-                {
-                    new Claim(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-                    new Claim(JwtRegisteredClaimNames.Exp, now.AddMinutes(9).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-                    new Claim(JwtRegisteredClaimNames.Iss, appId)
-                };
-
-                var token = new JwtSecurityToken(claims: claims, signingCredentials: credentials);
-                return new JwtSecurityTokenHandler().WriteToken(token);
+                rsaParameters = rsa.ExportParameters(true);
             }
+
+            var credentials = new SigningCredentials(new RsaSecurityKey(rsaParameters), SecurityAlgorithms.RsaSha256);
+            var now = DateTimeOffset.UtcNow;
+
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+                new Claim(JwtRegisteredClaimNames.Exp, now.AddMinutes(9).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+                new Claim(JwtRegisteredClaimNames.Iss, appId)
+            };
+
+            var token = new JwtSecurityToken(claims: claims, signingCredentials: credentials);
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
         private async Task<string> FetchPrimaryEmailAsync(HttpClient client)
@@ -395,6 +774,45 @@ namespace ABPGroup.Authentication.External.GitHub
 
             [JsonPropertyName("html_url")]
             public string HtmlUrl { get; set; }
+        }
+
+        private class GitHubRepositoryDetails
+        {
+            [JsonPropertyName("default_branch")]
+            public string DefaultBranch { get; set; }
+        }
+
+        private class GitHubRefResponse
+        {
+            [JsonPropertyName("ref")]
+            public string Ref { get; set; }
+
+            [JsonPropertyName("object")]
+            public GitHubObjectInfo Object { get; set; }
+        }
+
+        private class GitHubCommitResponse
+        {
+            [JsonPropertyName("sha")]
+            public string Sha { get; set; }
+
+            [JsonPropertyName("tree")]
+            public GitHubObjectInfo Tree { get; set; }
+        }
+
+        private class GitHubTreeResponse
+        {
+            [JsonPropertyName("sha")]
+            public string Sha { get; set; }
+        }
+
+        private class GitHubObjectInfo
+        {
+            [JsonPropertyName("sha")]
+            public string Sha { get; set; }
+
+            [JsonPropertyName("type")]
+            public string Type { get; set; }
         }
 
         private class GitHubApiUserResponse

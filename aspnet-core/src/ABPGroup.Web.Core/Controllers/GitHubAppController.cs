@@ -1,10 +1,13 @@
 using Abp.Authorization;
 using Abp.Domain.Repositories;
 using ABPGroup.Authentication.External.GitHub;
+using ABPGroup.Projects;
 using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace ABPGroup.Controllers
@@ -24,18 +27,31 @@ namespace ABPGroup.Controllers
             public string InstallationId { get; set; }
         }
 
+        public class CommitGeneratedFilesInput
+        {
+            public long ProjectId { get; set; }
+            public string RepositoryName { get; set; }
+            public string RepositoryFullName { get; set; }
+            public string Owner { get; set; }
+            public string Branch { get; set; } = "main";
+            public string CommitMessage { get; set; }
+        }
+
         private readonly IConfiguration _configuration;
         private readonly GitHubApiService _gitHubApiService;
         private readonly IRepository<User, long> _userRepository;
+        private readonly IRepository<Project, long> _projectRepository;
 
         public GitHubAppController(
             IConfiguration configuration,
             GitHubApiService gitHubApiService,
-            IRepository<User, long> userRepository)
+            IRepository<User, long> userRepository,
+            IRepository<Project, long> projectRepository)
         {
             _configuration = configuration;
             _gitHubApiService = gitHubApiService;
             _userRepository = userRepository;
+            _projectRepository = projectRepository;
         }
 
         [HttpGet("status")]
@@ -213,6 +229,39 @@ namespace ABPGroup.Controllers
             }
             catch (Exception ex)
             {
+                var duplicateRepo = ex.Message != null &&
+                                    ex.Message.IndexOf("name already exists on this account", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (duplicateRepo)
+                {
+                    try
+                    {
+                        var token = await GetCurrentUserGitHubAccessTokenAsync();
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            var owner = input.Owner;
+                            if (string.IsNullOrWhiteSpace(owner))
+                            {
+                                owner = await _gitHubApiService.GetCurrentUserLoginAsync(token);
+                            }
+
+                            var existingRepository = await _gitHubApiService.GetRepositoryWithUserTokenAsync(token, owner, input.Name);
+                            return Ok(new
+                            {
+                                created = false,
+                                reused = true,
+                                authMode = "oauth-user",
+                                repository = existingRepository,
+                                message = "Repository already existed and was reused."
+                            });
+                        }
+                    }
+                    catch (Exception lookupEx)
+                    {
+                        Logger.Warn("Repository exists but lookup for reuse failed.", lookupEx);
+                    }
+                }
+
                 Logger.Warn("GitHub repository creation failed.", ex);
                 return StatusCode(502, new
                 {
@@ -220,6 +269,139 @@ namespace ABPGroup.Controllers
                     error = ex.Message
                 });
             }
+        }
+
+        [HttpPost("commit-generated")]
+        public async Task<IActionResult> CommitGenerated([FromBody] CommitGeneratedFilesInput input)
+        {
+            if (input == null || input.ProjectId <= 0)
+            {
+                return BadRequest(new { message = "ProjectId is required." });
+            }
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+            {
+                return BadRequest(new
+                {
+                    message = "GitHub OAuth token is missing for the current user.",
+                    details = "Sign in with GitHub first, then retry commit and push."
+                });
+            }
+
+            var project = await _projectRepository.FirstOrDefaultAsync(input.ProjectId);
+            if (project == null)
+            {
+                return NotFound(new { message = "Project not found." });
+            }
+
+            var owner = input.Owner;
+            var repository = input.RepositoryName;
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repository))
+            {
+                ResolveOwnerAndRepository(input.RepositoryFullName, ref owner, ref repository);
+            }
+
+            if (string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repository))
+            {
+                owner = await _gitHubApiService.GetCurrentUserLoginAsync(userGitHubToken);
+            }
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repository))
+            {
+                return BadRequest(new
+                {
+                    message = "Repository owner and name are required.",
+                    details = "Provide owner + repositoryName or repositoryFullName in the payload."
+                });
+            }
+
+            var projectDir = Path.Combine("/app/GeneratedApps", project.Name ?? string.Empty);
+            if (!Directory.Exists(projectDir))
+            {
+                return NotFound(new
+                {
+                    message = "Generated project files were not found on server.",
+                    details = $"Expected directory: {projectDir}"
+                });
+            }
+
+            try
+            {
+                var commitFiles = BuildCommitFiles(projectDir);
+                if (commitFiles.Count == 0)
+                {
+                    return BadRequest(new { message = "No generated files were found to commit." });
+                }
+
+                var result = await _gitHubApiService.CommitFilesToBranchAsync(
+                    userGitHubToken,
+                    owner,
+                    repository,
+                    string.IsNullOrWhiteSpace(input.Branch) ? "main" : input.Branch,
+                    input.CommitMessage,
+                    commitFiles);
+
+                return Ok(new
+                {
+                    committed = true,
+                    owner,
+                    repository,
+                    branch = result.Branch,
+                    commitSha = result.CommitSha,
+                    committedFiles = commitFiles.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("GitHub commit and push failed.", ex);
+                return StatusCode(502, new
+                {
+                    message = "Failed to commit and push generated files to GitHub.",
+                    error = ex.Message
+                });
+            }
+        }
+
+        private static void ResolveOwnerAndRepository(string repositoryFullName, ref string owner, ref string repository)
+        {
+            if (string.IsNullOrWhiteSpace(repositoryFullName))
+            {
+                return;
+            }
+
+            var parts = repositoryFullName.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                owner = string.IsNullOrWhiteSpace(owner) ? parts[0] : owner;
+                repository = string.IsNullOrWhiteSpace(repository) ? parts[1] : repository;
+            }
+        }
+
+        private static List<GitHubApiService.GitHubCommitFile> BuildCommitFiles(string projectDir)
+        {
+            var files = new List<GitHubApiService.GitHubCommitFile>();
+            var absoluteFiles = Directory.GetFiles(projectDir, "*", SearchOption.AllDirectories);
+
+            foreach (var filePath in absoluteFiles)
+            {
+                var relativePath = filePath.Substring(projectDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.IsNullOrWhiteSpace(relativePath))
+                {
+                    continue;
+                }
+
+                var normalizedPath = relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+                var bytes = System.IO.File.ReadAllBytes(filePath);
+                files.Add(new GitHubApiService.GitHubCommitFile
+                {
+                    Path = normalizedPath,
+                    ContentBase64 = Convert.ToBase64String(bytes)
+                });
+            }
+
+            return files;
         }
 
         private async Task<string> GetCurrentUserGitHubAccessTokenAsync()

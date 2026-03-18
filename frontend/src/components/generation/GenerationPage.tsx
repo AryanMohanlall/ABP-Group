@@ -191,6 +191,11 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       return;
     }
 
+    if (!latestProject?.id) {
+      setDeployError("No generated project was found to commit.");
+      return;
+    }
+
     setDeployError(null);
     setIsCreatingRepo(true);
 
@@ -211,6 +216,19 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       });
 
       const repository = response.data.repository;
+      const fullName = repository?.fullName ?? "";
+      const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
+      const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
+
+      await instance.post("/api/github-app/commit-generated", {
+        projectId: latestProject.id,
+        owner: ownerFromFullName,
+        repositoryName: repoFromFullName,
+        repositoryFullName: fullName || undefined,
+        branch: branchName,
+        commitMessage: `feat: initial generated project commit (${projectTitle})`,
+      });
+
       setGithubRepoUrl(repository?.htmlUrl ?? null);
       setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
       setIsDeploying(true);
