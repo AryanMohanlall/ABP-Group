@@ -135,6 +135,34 @@ namespace ABPGroup.Authentication.External.GitHub
             return tokenResponse.Token;
         }
 
+        public async Task<GitHubInstallationInfo> GetInstallationInfoAsync(string appId, string installationId, string privateKeyPem)
+        {
+            var jwt = CreateGitHubAppJwt(appId, privateKeyPem);
+            var client = _httpClientFactory.CreateClient();
+
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://api.github.com/app/installations/{installationId}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("PromptForge", "1.0"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            request.Headers.Add("X-GitHub-Api-Version", GitHubApiVersion);
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub installation lookup failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var installation = await response.Content.ReadFromJsonAsync<GitHubInstallationInfo>();
+            if (installation == null)
+            {
+                throw new Exception("GitHub installation lookup returned empty payload.");
+            }
+
+            return installation;
+        }
+
         public async Task<List<GitHubRepositoryInfo>> GetInstallationRepositoriesAsync(string installationToken)
         {
             var client = _httpClientFactory.CreateClient();
@@ -192,6 +220,59 @@ namespace ABPGroup.Authentication.External.GitHub
             {
                 var errorBody = await response.Content.ReadAsStringAsync();
                 throw new Exception($"GitHub repository creation failed: {(int)response.StatusCode} {errorBody}");
+            }
+
+            var repository = await response.Content.ReadFromJsonAsync<GitHubRepositoryInfo>();
+            if (repository == null)
+            {
+                throw new Exception("GitHub repository creation response was empty.");
+            }
+
+            return repository;
+        }
+
+        public async Task<GitHubRepositoryInfo> CreateRepositoryWithUserTokenAsync(
+            string userAccessToken,
+            string repositoryName,
+            bool isPrivate,
+            string description,
+            bool autoInit,
+            string owner)
+        {
+            if (string.IsNullOrWhiteSpace(repositoryName))
+            {
+                throw new ArgumentException("Repository name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(userAccessToken))
+            {
+                throw new ArgumentException("User GitHub access token is required.");
+            }
+
+            var client = _httpClientFactory.CreateClient();
+            var route = string.IsNullOrWhiteSpace(owner)
+                ? "https://api.github.com/user/repos"
+                : $"https://api.github.com/orgs/{owner}/repos";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, route);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", userAccessToken);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("PromptForge", "1.0"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            request.Headers.Add("X-GitHub-Api-Version", GitHubApiVersion);
+
+            request.Content = JsonContent.Create(new
+            {
+                name = repositoryName,
+                description,
+                @private = isPrivate,
+                auto_init = autoInit
+            });
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"GitHub repository creation with user token failed: {(int)response.StatusCode} {errorBody}");
             }
 
             var repository = await response.Content.ReadFromJsonAsync<GitHubRepositoryInfo>();
@@ -272,6 +353,24 @@ namespace ABPGroup.Authentication.External.GitHub
         {
             [JsonPropertyName("token")]
             public string Token { get; set; }
+        }
+
+        public class GitHubInstallationInfo
+        {
+            [JsonPropertyName("id")]
+            public long Id { get; set; }
+
+            [JsonPropertyName("account")]
+            public GitHubInstallationAccount Account { get; set; }
+        }
+
+        public class GitHubInstallationAccount
+        {
+            [JsonPropertyName("login")]
+            public string Login { get; set; }
+
+            [JsonPropertyName("type")]
+            public string Type { get; set; }
         }
 
         private class GitHubInstallationRepositoriesResponse

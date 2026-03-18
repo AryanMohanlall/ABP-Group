@@ -1,5 +1,7 @@
 using Abp.Authorization;
+using Abp.Domain.Repositories;
 using ABPGroup.Authentication.External.GitHub;
+using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -24,11 +26,16 @@ namespace ABPGroup.Controllers
 
         private readonly IConfiguration _configuration;
         private readonly GitHubApiService _gitHubApiService;
+        private readonly IRepository<User, long> _userRepository;
 
-        public GitHubAppController(IConfiguration configuration, GitHubApiService gitHubApiService)
+        public GitHubAppController(
+            IConfiguration configuration,
+            GitHubApiService gitHubApiService,
+            IRepository<User, long> userRepository)
         {
             _configuration = configuration;
             _gitHubApiService = gitHubApiService;
+            _userRepository = userRepository;
         }
 
         [HttpGet("status")]
@@ -127,29 +134,70 @@ namespace ABPGroup.Controllers
             var appId = _configuration["GitHubApp:AppId"];
             var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];
             var resolvedInstallationId = input.InstallationId ?? _configuration["GitHubApp:InstallationId"];
-
-            if (string.IsNullOrWhiteSpace(appId) ||
-                string.IsNullOrWhiteSpace(privateKeyPem) ||
-                string.IsNullOrWhiteSpace(resolvedInstallationId))
-            {
-                return BadRequest(new
-                {
-                    message = "GitHub App configuration is incomplete.",
-                    hasAppId = !string.IsNullOrWhiteSpace(appId),
-                    hasPrivateKey = !string.IsNullOrWhiteSpace(privateKeyPem),
-                    hasInstallationId = !string.IsNullOrWhiteSpace(resolvedInstallationId)
-                });
-            }
+            var canUseAppFlow =
+                !string.IsNullOrWhiteSpace(appId) &&
+                !string.IsNullOrWhiteSpace(privateKeyPem) &&
+                !string.IsNullOrWhiteSpace(resolvedInstallationId);
 
             try
             {
-                var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
-                    appId,
-                    resolvedInstallationId,
-                    privateKeyPem);
+                var owner = input.Owner;
+                string installationAccountType = null;
+                string installationAccountLogin = null;
 
-                var repository = await _gitHubApiService.CreateRepositoryAsync(
-                    installationToken,
+                if (canUseAppFlow && string.IsNullOrWhiteSpace(owner))
+                {
+                    var installation = await _gitHubApiService.GetInstallationInfoAsync(
+                        appId,
+                        resolvedInstallationId,
+                        privateKeyPem);
+
+                    installationAccountType = installation?.Account?.Type;
+                    installationAccountLogin = installation?.Account?.Login;
+
+                    owner = installationAccountType == "Organization"
+                        ? installationAccountLogin
+                        : null;
+                }
+
+                if (canUseAppFlow && !string.IsNullOrWhiteSpace(owner))
+                {
+                    var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
+                        appId,
+                        resolvedInstallationId,
+                        privateKeyPem);
+
+                    var appRepository = await _gitHubApiService.CreateRepositoryAsync(
+                        installationToken,
+                        input.Name,
+                        input.IsPrivate,
+                        input.Description,
+                        input.AutoInit,
+                        owner);
+
+                    return Ok(new
+                    {
+                        created = true,
+                        authMode = "github-app",
+                        repository = appRepository
+                    });
+                }
+
+                // Fallback for user-owned installations: use the authenticated user's GitHub OAuth token.
+                var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+                if (string.IsNullOrWhiteSpace(userGitHubToken))
+                {
+                    return BadRequest(new
+                    {
+                        message = "GitHub OAuth token is missing for the current user.",
+                        details = "Sign in with GitHub first, then retry repository creation.",
+                        installationType = installationAccountType,
+                        installationAccount = installationAccountLogin
+                    });
+                }
+
+                var oauthRepository = await _gitHubApiService.CreateRepositoryWithUserTokenAsync(
+                    userGitHubToken,
                     input.Name,
                     input.IsPrivate,
                     input.Description,
@@ -159,7 +207,8 @@ namespace ABPGroup.Controllers
                 return Ok(new
                 {
                     created = true,
-                    repository
+                    authMode = "oauth-user",
+                    repository = oauthRepository
                 });
             }
             catch (Exception ex)
@@ -171,6 +220,17 @@ namespace ABPGroup.Controllers
                     error = ex.Message
                 });
             }
+        }
+
+        private async Task<string> GetCurrentUserGitHubAccessTokenAsync()
+        {
+            if (!AbpSession.UserId.HasValue)
+            {
+                return null;
+            }
+
+            var user = await _userRepository.FirstOrDefaultAsync(AbpSession.UserId.Value);
+            return user?.GitHubAccessToken;
         }
     }
 }
