@@ -6,11 +6,11 @@ declare module "redux-actions" {
 
   export type Reducer<State> = (state: State | undefined, action: Action) => State;
 
-  export type ActionFunction<Payload = unknown> = (...args: any[]) => Action<Payload>;
+  export type ActionFunction<Payload = unknown> = (...args: unknown[]) => Action<Payload>;
 
   export function createAction<Payload = unknown>(
     type: string,
-    payloadCreator?: (...args: any[]) => Payload
+    payloadCreator?: (...args: unknown[]) => Payload
   ): ActionFunction<Payload>;
 
   export function handleActions<State, Payload = unknown>(
