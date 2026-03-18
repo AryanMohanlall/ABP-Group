@@ -19,83 +19,88 @@ export enum ProjectStateEnums {
   PROJECT_DELETE_ERROR = "PROJECT_DELETE_ERROR",
 }
 
-export const fetchAllPending = createAction<IProjectStateContext>(
+export const fetchAllPending = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_FETCH_ALL_PENDING,
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const fetchAllSuccess = createAction<
-  IProjectStateContext,
-  { items: IProjectItem[]; totalCount: number }
->(ProjectStateEnums.PROJECT_FETCH_ALL_SUCCESS, ({ items, totalCount }) => ({
+export const fetchAllSuccess = createAction<Partial<IProjectStateContext>>(
+  ProjectStateEnums.PROJECT_FETCH_ALL_SUCCESS,
+  ({ items, totalCount }: { items: IProjectItem[]; totalCount: number }) => ({
   isPending: false,
   isSuccess: true,
   isError: false,
   items,
   totalCount,
-}));
+  })
+);
 
-export const fetchAllError = createAction<IProjectStateContext>(
+export const fetchAllError = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_FETCH_ALL_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true })
 );
 
-export const fetchOnePending = createAction<IProjectStateContext>(
+export const fetchOnePending = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_FETCH_ONE_PENDING,
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const fetchOneSuccess = createAction<IProjectStateContext, IProjectItem>(
+export const fetchOneSuccess = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_FETCH_ONE_SUCCESS,
-  selected => ({ isPending: false, isSuccess: true, isError: false, selected })
+  (selected: IProjectItem) => ({
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    selected,
+  })
 );
 
-export const fetchOneError = createAction<IProjectStateContext>(
+export const fetchOneError = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_FETCH_ONE_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true })
 );
 
-export const createPending = createAction<IProjectStateContext>(
+export const createPending = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_CREATE_PENDING,
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const createSuccess = createAction<IProjectStateContext>(
+export const createSuccess = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_CREATE_SUCCESS,
   () => ({ isPending: false, isSuccess: true, isError: false })
 );
 
-export const createError = createAction<IProjectStateContext>(
+export const createError = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_CREATE_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true })
 );
 
-export const updatePending = createAction<IProjectStateContext>(
+export const updatePending = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_UPDATE_PENDING,
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const updateSuccess = createAction<IProjectStateContext>(
+export const updateSuccess = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_UPDATE_SUCCESS,
   () => ({ isPending: false, isSuccess: true, isError: false })
 );
 
-export const updateError = createAction<IProjectStateContext>(
+export const updateError = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_UPDATE_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true })
 );
 
-export const deletePending = createAction<IProjectStateContext>(
+export const deletePending = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_DELETE_PENDING,
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const deleteSuccess = createAction<IProjectStateContext>(
+export const deleteSuccess = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_DELETE_SUCCESS,
   () => ({ isPending: false, isSuccess: true, isError: false })
 );
 
-export const deleteError = createAction<IProjectStateContext>(
+export const deleteError = createAction<Partial<IProjectStateContext>>(
   ProjectStateEnums.PROJECT_DELETE_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true })
 );
