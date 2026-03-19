@@ -39,6 +39,15 @@ public class TenantRoleAndUserBuilder
             _context.SaveChanges();
         }
 
+        // ProductBuilder role
+
+        var productBuilderRole = _context.Roles.IgnoreQueryFilters().FirstOrDefault(r => r.TenantId == _tenantId && r.Name == StaticRoleNames.Tenants.ProductBuilder);
+        if (productBuilderRole == null)
+        {
+            productBuilderRole = _context.Roles.Add(new Role(_tenantId, StaticRoleNames.Tenants.ProductBuilder, StaticRoleNames.Tenants.ProductBuilder) { IsStatic = true }).Entity;
+            _context.SaveChanges();
+        }
+
         // Grant all permissions to admin role
 
         var grantedPermissions = _context.Permissions.IgnoreQueryFilters()

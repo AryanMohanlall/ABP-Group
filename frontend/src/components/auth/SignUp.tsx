@@ -46,24 +46,46 @@ interface SocialButtonProps {
   readonly onClick?: () => void;
 }
 
-const decodeInvitationToken = (token: string | null) => {
-  if (!token) return { tenantId: undefined, invitedRole: undefined };
-  try {
-    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
-    const padding = normalized.length % 4;
-    const decoded = atob(
-      padding
-        ? normalized.padEnd(normalized.length + (4 - padding), "=")
-        : normalized,
-    );
-    const parsed = JSON.parse(decoded);
-    return {
-      tenantId: typeof parsed.tenantId === "number" ? parsed.tenantId : undefined,
-      invitedRole: typeof parsed.role === "number" ? parsed.role : undefined,
-    };
-  } catch {
-    return { tenantId: undefined, invitedRole: undefined };
+const decodeInvitationToken = (token: string | null, tenantParam: string | null) => {
+  if (token) {
+    try {
+      const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
+      const padding = normalized.length % 4;
+      const decoded = atob(
+        padding
+          ? normalized.padEnd(normalized.length + (4 - padding), "=")
+          : normalized,
+      );
+      const parsed = JSON.parse(decoded);
+      return {
+        tenantId: typeof parsed.tenantId === "number" ? parsed.tenantId : undefined,
+        invitedRole: typeof parsed.role === "number" ? parsed.role : undefined,
+      };
+    } catch {
+      // ignore
+    }
   }
+
+  if (tenantParam) {
+    try {
+      const normalized = tenantParam.replace(/-/g, "+").replace(/_/g, "/");
+      const padding = normalized.length % 4;
+      const decoded = atob(
+        padding
+          ? normalized.padEnd(normalized.length + (4 - padding), "=")
+          : normalized,
+      );
+      const tenantId = Number.parseInt(decoded, 10);
+      return {
+        tenantId: Number.isNaN(tenantId) ? undefined : tenantId,
+        invitedRole: undefined,
+      };
+    } catch {
+      // ignore
+    }
+  }
+
+  return { tenantId: undefined, invitedRole: undefined };
 };
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -194,7 +216,7 @@ function SignUpPage() {
   const [attempted, setAttempted] = useState(false);
   const [validationError, setValidationError] = useState("");
   const searchParams = useSearchParams();
-  const { tenantId, invitedRole } = decodeInvitationToken(searchParams.get("token"));
+  const { tenantId, invitedRole } = decodeInvitationToken(searchParams.get("token"), searchParams.get("tenant"));
   const { register } = useAuthAction();
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
