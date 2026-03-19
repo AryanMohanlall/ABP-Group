@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (stored) {
         const user: IUser = JSON.parse(stored);
         if (user?.accessToken && user?.userId) {
-          window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
+          window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin?linkUserId=${user.userId}`;
           return;
         }
       }

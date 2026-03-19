@@ -105,7 +105,7 @@ namespace ABPGroup.Controllers
         }
 
         [HttpGet]
-        public IActionResult GitHubLogin()
+        public IActionResult GitHubLogin([FromQuery] long? linkUserId = null)
         {
             var state = Guid.NewGuid().ToString("N");
 
@@ -116,6 +116,17 @@ namespace ABPGroup.Controllers
                 SameSite = SameSiteMode.Lax,
                 MaxAge = TimeSpan.FromMinutes(10)
             });
+
+            if (linkUserId.HasValue)
+            {
+                Response.Cookies.Append("github_link_user_id", linkUserId.Value.ToString(), new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = HttpContext.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    MaxAge = TimeSpan.FromMinutes(10)
+                });
+            }
 
             var clientId = GetGitHubOAuthConfig("ClientId");
             var redirectUri = Uri.EscapeDataString(GetGitHubOAuthConfig("RedirectUri"));
@@ -142,6 +153,9 @@ namespace ABPGroup.Controllers
 
             Response.Cookies.Delete("github_oauth_state");
 
+            var linkedUserIdRaw = Request.Cookies["github_link_user_id"];
+            Response.Cookies.Delete("github_link_user_id");
+
             var githubAccessToken = await _gitHubApiService.ExchangeCodeForAccessTokenAsync(
                 code,
                 GetGitHubOAuthConfig("ClientId"),
@@ -162,7 +176,14 @@ namespace ABPGroup.Controllers
             User user;
             try
             {
-                user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
+                if (!string.IsNullOrWhiteSpace(linkedUserIdRaw) && long.TryParse(linkedUserIdRaw, out var linkedUserId))
+                {
+                    user = await LinkGitHubToExistingUserAsync(linkedUserId, githubUser, githubAccessToken);
+                }
+                else
+                {
+                    user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
+                }
             }
             catch (Exception ex)
             {
@@ -195,6 +216,31 @@ namespace ABPGroup.Controllers
         private string GetGitHubOAuthConfig(string key)
         {
             return _appConfiguration[$"GitHubOAuth:{key}"] ?? _appConfiguration[$"GitHub:{key}"];
+        }
+
+        private async Task<User> LinkGitHubToExistingUserAsync(long userId, GitHubUserInfo githubUser, string githubAccessToken)
+        {
+            using (var uow = _unitOfWorkManager.Begin())
+            using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
+            {
+                var user = await _userRepository.FirstOrDefaultAsync(userId);
+                if (user == null)
+                {
+                    throw new Exception($"User with id {userId} was not found for GitHub linking.");
+                }
+
+                user.GitHubUsername = githubUser.Id.ToString();
+                user.GitHubAccessToken = githubAccessToken;
+                if (!string.IsNullOrWhiteSpace(githubUser.AvatarUrl))
+                {
+                    user.AvatarUrl = githubUser.AvatarUrl;
+                }
+
+                await _userRepository.UpdateAsync(user);
+                await uow.CompleteAsync();
+
+                return user;
+            }
         }
 
         private string GetTenancyNameOrNull()
