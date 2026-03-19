@@ -165,6 +165,22 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
     [fetchAll, instance],
   );
 
+  const toggleFavorite = useCallback(
+    async (id: number) => {
+      try {
+        await instance.post(`${ENDPOINT}/ToggleFavorite`, null, {
+          params: { id },
+        });
+        // We can either fetchAll or just update the local state for better UX
+        // For simplicity, let's just fetchAll or the single item
+        await fetchAll();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchAll, instance],
+  );
+
   return (
     <TemplateStateContext.Provider value={state}>
       <TemplateActionContext.Provider
@@ -177,6 +193,7 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
           publish,
           deprecate,
           setFeatured,
+          toggleFavorite,
         }}
       >
         {children}

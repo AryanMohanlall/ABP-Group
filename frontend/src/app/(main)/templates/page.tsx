@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Empty, Input, Select, Spin, Tag } from "antd";
-import { PlusIcon } from "lucide-react";
+import {
+  Button,
+  Card,
+  Empty,
+  Input,
+  Select,
+  Spin,
+  Tag,
+  Tabs,
+  message,
+} from "antd";
+import { PlusIcon, HeartIcon } from "lucide-react";
 import {
   useTemplateAction,
   useTemplateState,
@@ -12,16 +22,19 @@ import { TemplateCategory } from "@/providers/templates-provider/context";
 import { useRouter } from "next/navigation";
 
 export default function TemplatesPage() {
-  const { styles } = useStyles();
+  const { styles, cx } = useStyles();
   const router = useRouter();
-  const { fetchAll } = useTemplateAction();
+  const { fetchAll, toggleFavorite } = useTemplateAction();
   const { items, isPending, isError } = useTemplateState();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState("marketplace");
 
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    fetchAll({
+      isMyTemplates: activeTab === "my-templates",
+    });
+  }, [fetchAll, activeTab]);
 
   const categories = useMemo(() => {
     const categoryOptions = Object.entries(TemplateCategory)
@@ -30,6 +43,15 @@ export default function TemplatesPage() {
 
     return [{ label: "All categories", value: "all" }].concat(categoryOptions);
   }, []);
+
+  const handleToggleFavorite = async (id: number) => {
+    try {
+      await toggleFavorite(id);
+      message.success("Collection updated");
+    } catch (error) {
+      message.error("Failed to update collection");
+    }
+  };
 
   const filteredItems = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -51,7 +73,7 @@ export default function TemplatesPage() {
         template.name,
         template.description,
         template.categoryName,
-        template.tags.join(" "),
+        template.tags?.join(" "),
         template.author,
       ]
         .filter(Boolean)
@@ -66,30 +88,13 @@ export default function TemplatesPage() {
     <div className={styles.page}>
       <div className={styles.toolbar}>
         <div className={styles.titleWrap}>
-          <h1 className={styles.title}>Templates</h1>
+          <h1 className={styles.title}>Templates Marketplace</h1>
           <p className={styles.subtitle}>
-            Browse backend templates and use them as starting points for
-            generation.
+            Discover and share project structures with the community.
           </p>
         </div>
 
         <div className={styles.controls}>
-          <Input.Search
-            allowClear
-            placeholder="Search templates"
-            className={styles.search}
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-          <Select
-            style={{ minWidth: 160 }}
-            value={categoryFilter}
-            options={categories}
-            onChange={(value) => setCategoryFilter(value)}
-          />
-          <Button onClick={() => fetchAll()} loading={isPending}>
-            Refresh
-          </Button>
           <Button
             type="primary"
             icon={<PlusIcon size={16} />}
@@ -98,6 +103,41 @@ export default function TemplatesPage() {
             Add Template
           </Button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { key: "marketplace", label: "Marketplace" },
+            { key: "my-templates", label: "My Templates" },
+          ]}
+        />
+      </div>
+
+      <div className={styles.controls} style={{ marginBottom: 24 }}>
+        <Input.Search
+          allowClear
+          placeholder="Search templates..."
+          className={styles.search}
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+        />
+        <Select
+          style={{ minWidth: 160 }}
+          value={categoryFilter}
+          options={categories}
+          onChange={(value) => setCategoryFilter(value)}
+        />
+        <Button
+          onClick={() =>
+            fetchAll({ isMyTemplates: activeTab === "my-templates" })
+          }
+          loading={isPending}
+        >
+          Refresh
+        </Button>
       </div>
 
       {isPending && items.length === 0 ? (
@@ -119,7 +159,11 @@ export default function TemplatesPage() {
         <Card className={styles.stateCard}>
           <div className={styles.stateInner}>
             <Empty
-              description="No templates match your filters."
+              description={
+                activeTab === "my-templates"
+                  ? "You haven't created any templates yet."
+                  : "No templates match your filters."
+              }
               image={Empty.PRESENTED_IMAGE_SIMPLE}
             />
           </div>
@@ -133,7 +177,20 @@ export default function TemplatesPage() {
               <Card key={template.id} className={styles.templateCard}>
                 <div className={styles.templateHeader}>
                   <h2 className={styles.templateName}>{template.name}</h2>
-                  <Tag color="blue">{template.categoryName}</Tag>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Tag color="blue">{template.categoryName}</Tag>
+                    <Button
+                      type="text"
+                      icon={
+                        <HeartIcon
+                          size={18}
+                          fill={template.isFavorite ? "#ff4d4f" : "none"}
+                          color={template.isFavorite ? "#ff4d4f" : "currentColor"}
+                        />
+                      }
+                      onClick={() => handleToggleFavorite(template.id)}
+                    />
+                  </div>
                 </div>
 
                 <p className={styles.description}>
@@ -191,7 +248,15 @@ export default function TemplatesPage() {
                       Live Preview
                     </Button>
                   )}
-                  <Button type="primary" size="small" style={{ marginLeft: "auto" }}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    style={{ marginLeft: "auto" }}
+                    onClick={() => {
+                      message.info("Template selected for next project");
+                      // Implementation for setting preference can be added here
+                    }}
+                  >
                     Use Template
                   </Button>
                 </div>

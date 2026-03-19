@@ -1,10 +1,12 @@
+using Abp.Domain.Entities;
 using Abp.Domain.Entities.Auditing;
 using ABPGroup.Projects;
 
 namespace ABPGroup.Templates;
 
-public class Template : FullAuditedEntity<int>
+public class Template : FullAuditedEntity<int>, IMayHaveTenant
 {
+    public int? TenantId { get; set; }
     public const int MaxNameLength         = 128;
     public const int MaxDescriptionLength  = 1000;
     public const int MaxTagLength          = 500;

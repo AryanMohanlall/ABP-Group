@@ -14,6 +14,7 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
     public DbSet<Project> Projects { get; set; }
     public DbSet<Prompt> Prompts { get; set; }
     public DbSet<Template> Templates { get; set; }
+    public DbSet<UserFavoriteTemplate> UserFavoriteTemplates { get; set; }
 
     public ABPGroupDbContext(DbContextOptions<ABPGroupDbContext> options)
         : base(options)
@@ -72,6 +73,14 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
             builder.HasIndex(x => x.Category);
             builder.HasIndex(x => x.Status);
             builder.HasIndex(x => x.IsFeatured);
+        });
+
+        modelBuilder.Entity<UserFavoriteTemplate>(builder =>
+        {
+            builder.ToTable("UserFavoriteTemplates");
+            builder.HasIndex(x => x.UserId);
+            builder.HasIndex(x => x.TemplateId);
+            builder.HasIndex(x => new { x.UserId, x.TemplateId }).IsUnique();
         });
     }
 }

@@ -22,5 +22,6 @@ public class TemplateDto : EntityDto<int>
     public string              Version      { get; set; }
     public bool                IsFeatured   { get; set; }
     public int                 ForkCount    { get; set; }
+    public bool                IsFavorite   { get; set; }
     public DateTime            CreatedAt    { get; set; }
 }

@@ -44,6 +44,7 @@ export interface ITemplateItem {
   version: string;
   isFeatured: boolean;
   forkCount: number;
+  isFavorite: boolean;
   createdAt: string;
 }
 
@@ -77,6 +78,7 @@ export interface ITemplateListInput {
   status?: TemplateStatus;
   searchTerm?: string;
   isFeatured?: boolean;
+  isMyTemplates?: boolean;
   skipCount?: number;
   maxResultCount?: number;
   sorting?: string;
@@ -100,6 +102,7 @@ export interface ITemplateActionContext {
   publish: (id: number) => Promise<void>;
   deprecate: (id: number) => Promise<void>;
   setFeatured: (id: number, featured: boolean) => Promise<void>;
+  toggleFavorite: (id: number) => Promise<void>;
 }
 
 export const INITIAL_STATE: ITemplateStateContext = {
@@ -121,4 +124,5 @@ export const TemplateActionContext = createContext<ITemplateActionContext>({
   publish: async () => {},
   deprecate: async () => {},
   setFeatured: async () => {},
+  toggleFavorite: async () => {},
 });

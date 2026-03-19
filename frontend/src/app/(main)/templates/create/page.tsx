@@ -12,23 +12,21 @@ import {
   message,
   Space,
   Typography,
+  Divider,
 } from "antd";
 import {
   useTemplateAction,
   useTemplateState,
 } from "@/providers/templates-provider";
-import {
-  TemplateCategory,
-  TemplateStatus,
-} from "@/providers/templates-provider/context";
+import { TemplateCategory } from "@/providers/templates-provider/context";
 import {
   ProjectFramework,
   ProjectProgrammingLanguage,
   ProjectDatabaseOption,
 } from "@/providers/projects-provider/context";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, SparklesIcon } from "lucide-react";
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 
 export default function CreateTemplatePage() {
@@ -44,12 +42,10 @@ export default function CreateTemplatePage() {
     try {
       await create({
         ...values,
-        forkCount: 0,
-        status: TemplateStatus.Draft,
-        version: values.version || "1.0.0",
-        isFeatured: values.isFeatured || false,
+        version: "1.0.0",
+        isFeatured: false,
       });
-      message.success("Template created successfully!");
+      message.success("Template shared with the community!");
       router.push("/templates");
     } catch (error) {
       console.error(error);
@@ -60,55 +56,144 @@ export default function CreateTemplatePage() {
   };
 
   return (
-    <div style={{ padding: "24px", maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ padding: "40px 24px", maxWidth: "900px", margin: "0 auto" }}>
       <Button
         type="link"
         icon={<ArrowLeftIcon size={16} />}
         onClick={() => router.push("/templates")}
-        style={{ marginBottom: 16, padding: 0 }}
+        style={{ marginBottom: 24, padding: 0, color: "#666" }}
       >
-        Back to Templates
+        Back to Marketplace
       </Button>
 
-      <Title level={2}>Create a New Template</Title>
-      <Paragraph>
-        Share your project structure and configuration with the community.
-      </Paragraph>
+      <div style={{ marginBottom: 40, textAlign: "center" }}>
+        <Title level={1}>Share your project structure</Title>
+        <Paragraph style={{ fontSize: "16px", color: "#666" }}>
+          Help others start their journey by providing a solid foundation.
+        </Paragraph>
+      </div>
 
-      <Card>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          initialValues={{
-            framework: ProjectFramework.NextJS,
-            language: ProjectProgrammingLanguage.TypeScript,
-            database: ProjectDatabaseOption.RenderPostgres,
-            category: TemplateCategory.AppsAndGames,
-            includesAuth: true,
-            version: "1.0.0",
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        requiredMark={false}
+        initialValues={{
+          framework: ProjectFramework.NextJS,
+          language: ProjectProgrammingLanguage.TypeScript,
+          database: ProjectDatabaseOption.RenderPostgres,
+          category: TemplateCategory.AppsAndGames,
+          includesAuth: true,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+            gap: "24px",
           }}
         >
-          <Title level={4}>Basic Information</Title>
-          <Form.Item
-            name="name"
-            label="Template Name"
-            rules={[{ required: true, message: "Please enter template name" }]}
+          <Card
+            title={
+              <Space>
+                <SparklesIcon size={18} />
+                <span>Basic Details</span>
+              </Space>
+            }
           >
-            <Input placeholder="e.g. Modern SaaS Starter" />
-          </Form.Item>
+            <Form.Item
+              name="name"
+              label="What's the name of this template?"
+              rules={[{ required: true, message: "A name is required" }]}
+            >
+              <Input size="large" placeholder="e.g. Clean SaaS Architecture" />
+            </Form.Item>
 
-          <Form.Item name="description" label="Description">
+            <Form.Item name="description" label="Brief description">
+              <TextArea
+                rows={4}
+                placeholder="Explain what this template includes and who it's for."
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="category"
+              label="Best category"
+              rules={[{ required: true }]}
+            >
+              <Select
+                size="large"
+                options={Object.entries(TemplateCategory)
+                  .filter(([key]) => isNaN(Number(key)))
+                  .map(([key, value]) => ({ label: key, value }))}
+              />
+            </Form.Item>
+          </Card>
+
+          <Card title="Tech Stack & Config">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+              }}
+            >
+              <Form.Item name="framework" label="Framework">
+                <Select
+                  options={Object.entries(ProjectFramework)
+                    .filter(([key]) => isNaN(Number(key)))
+                    .map(([key, value]) => ({ label: key, value }))}
+                />
+              </Form.Item>
+
+              <Form.Item name="language" label="Language">
+                <Select
+                  options={Object.entries(ProjectProgrammingLanguage)
+                    .filter(([key]) => isNaN(Number(key)))
+                    .map(([key, value]) => ({ label: key, value }))}
+                />
+              </Form.Item>
+            </div>
+
+            <Form.Item name="database" label="Preferred Database">
+              <Select
+                options={Object.entries(ProjectDatabaseOption)
+                  .filter(([key]) => isNaN(Number(key)))
+                  .map(([key, value]) => ({ label: key, value }))}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="includesAuth"
+              label="Pre-configured Auth"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+
+            <Divider />
+
+            <Form.Item name="tags" label="Tags (comma separated)">
+              <Input placeholder="saas, productivity, clean-code" />
+            </Form.Item>
+          </Card>
+        </div>
+
+        <Card title="Blueprint (Scaffold Config)" style={{ marginTop: 24 }}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
+            Paste the JSON configuration that defines the folder structure and
+            dependencies. This is what the AI will use to build the app.
+          </Text>
+          <Form.Item name="scaffoldConfig">
             <TextArea
-              rows={3}
-              placeholder="What makes this template special?"
+              rows={8}
+              style={{ fontFamily: "monospace" }}
+              placeholder='{ "structure": ["src/app", "src/components"], "deps": { "antd": "latest" } }'
             />
           </Form.Item>
+        </Card>
 
-          <Form.Item name="author" label="Author">
-            <Input placeholder="Your name or organization" />
-          </Form.Item>
-
+        <Card title="Presentation (Optional)" style={{ marginTop: 24 }}>
           <div
             style={{
               display: "grid",
@@ -116,121 +201,37 @@ export default function CreateTemplatePage() {
               gap: "16px",
             }}
           >
-            <Form.Item
-              name="category"
-              label="Category"
-              rules={[{ required: true }]}
-            >
-              <Select
-                options={Object.entries(TemplateCategory)
-                  .filter(([key]) => isNaN(Number(key)))
-                  .map(([key, value]) => ({ label: key, value }))}
-              />
+            <Form.Item name="thumbnailUrl" label="Thumbnail Image URL">
+              <Input placeholder="https://..." />
             </Form.Item>
 
-            <Form.Item name="version" label="Version">
-              <Input placeholder="1.0.0" />
+            <Form.Item name="previewUrl" label="Live Demo URL">
+              <Input placeholder="https://..." />
             </Form.Item>
           </div>
+        </Card>
 
-          <Title level={4} style={{ marginTop: 24 }}>
-            Tech Stack
-          </Title>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "16px",
-            }}
-          >
-            <Form.Item
-              name="framework"
-              label="Framework"
-              rules={[{ required: true }]}
+        <div style={{ marginTop: 40, textAlign: "center" }}>
+          <Space size="large">
+            <Button
+              type="primary"
+              size="large"
+              htmlType="submit"
+              loading={isSubmitting || isPending}
+              style={{ minWidth: 200, height: 48 }}
             >
-              <Select
-                options={Object.entries(ProjectFramework)
-                  .filter(([key]) => isNaN(Number(key)))
-                  .map(([key, value]) => ({ label: key, value }))}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="language"
-              label="Language"
-              rules={[{ required: true }]}
+              Publish Template
+            </Button>
+            <Button
+              size="large"
+              style={{ minWidth: 120, height: 48 }}
+              onClick={() => router.push("/templates")}
             >
-              <Select
-                options={Object.entries(ProjectProgrammingLanguage)
-                  .filter(([key]) => isNaN(Number(key)))
-                  .map(([key, value]) => ({ label: key, value }))}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="database"
-              label="Database"
-              rules={[{ required: true }]}
-            >
-              <Select
-                options={Object.entries(ProjectDatabaseOption)
-                  .filter(([key]) => isNaN(Number(key)))
-                  .map(([key, value]) => ({ label: key, value }))}
-              />
-            </Form.Item>
-          </div>
-
-          <Form.Item
-            name="includesAuth"
-            label="Includes Authentication"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          <Title level={4} style={{ marginTop: 24 }}>
-            Presentation & Metadata
-          </Title>
-          <Form.Item name="tags" label="Tags (comma separated)">
-            <Input placeholder="nextjs, tailwind, saas" />
-          </Form.Item>
-
-          <Form.Item name="thumbnailUrl" label="Thumbnail URL">
-            <Input placeholder="https://example.com/image.png" />
-          </Form.Item>
-
-          <Form.Item name="previewUrl" label="Preview URL">
-            <Input placeholder="https://demo.example.com" />
-          </Form.Item>
-
-          <Title level={4} style={{ marginTop: 24 }}>
-            Technical Configuration
-          </Title>
-          <Form.Item
-            name="scaffoldConfig"
-            label="Scaffold Config (JSON)"
-            extra="Instructions for the AI on how to structure the project."
-          >
-            <TextArea
-              rows={6}
-              placeholder='{ "dependencies": { "antd": "^5.0.0" }, "structure": [ "src/components", "src/hooks" ] }'
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginTop: 32 }}>
-            <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={isSubmitting || isPending}
-              >
-                Create Template
-              </Button>
-              <Button onClick={() => router.push("/templates")}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
+              Cancel
+            </Button>
+          </Space>
+        </div>
+      </Form>
     </div>
   );
 }

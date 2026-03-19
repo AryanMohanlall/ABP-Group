@@ -12,4 +12,5 @@ public class TemplateListInput : PagedAndSortedResultRequestDto
     public TemplateStatus?      Status       { get; set; }
     public string               SearchTerm   { get; set; }
     public bool?                IsFeatured   { get; set; }
+    public bool?                IsMyTemplates { get; set; }
 }

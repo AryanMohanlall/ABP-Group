@@ -18,4 +18,5 @@ public interface ITemplateAppService : IApplicationService
     Task<TemplateDto> PublishAsync(int id);    // Draft → Active
     Task<TemplateDto> DeprecateAsync(int id);  // Active → Deprecated
     Task<TemplateDto> SetFeaturedAsync(int id, bool featured);
+    Task              ToggleFavoriteAsync(int id);
 }
