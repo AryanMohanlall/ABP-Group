@@ -82,6 +82,12 @@ namespace ABPGroup.Controllers
                 tenancyName
             );
 
+            var roleNames = loginResult.Identity.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Distinct()
+                .ToArray();
+
             var accessToken = CreateAccessToken(CreateJwtClaims(loginResult.Identity));
 
             return new AuthenticateResultModel
@@ -89,7 +95,12 @@ namespace ABPGroup.Controllers
                 AccessToken = accessToken,
                 EncryptedAccessToken = GetEncryptedAccessToken(accessToken),
                 ExpireInSeconds = (int)_configuration.Expiration.TotalSeconds,
-                UserId = loginResult.User.Id
+                UserId = loginResult.User.Id,
+                UserName = loginResult.User.UserName,
+                Name = loginResult.User.Name,
+                Surname = loginResult.User.Surname,
+                EmailAddress = loginResult.User.EmailAddress,
+                RoleNames = roleNames
             };
         }
 
@@ -163,8 +174,14 @@ namespace ABPGroup.Controllers
             var identity = (ClaimsIdentity)principal.Identity;
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
+            var roleNames = identity.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Distinct()
+                .ToArray();
+            var encodedRoleNames = Uri.EscapeDataString(string.Join(",", roleNames));
 
-            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
+            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds + "|" + encodedRoleNames, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,

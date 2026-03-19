@@ -151,8 +151,9 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   profileInfo: css`
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: ${token.marginSM}px;
+    min-width: 0;
   `,
   avatar: css`
     width: ${token.paddingXL}px;
@@ -168,6 +169,32 @@ export const useStyles = createStyles(({ token, css }) => ({
   profileName: css`
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
+    line-height: 1.2;
+  `,
+  profileTextBlock: css`
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+  `,
+  profileMeta: css`
+    font-size: ${token.fontSizeSM - 1}px;
+    color: ${token.colorTextSecondary};
+    line-height: 1.2;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  `,
+  roleBadge: css`
+    margin-top: 2px;
+    font-size: ${token.fontSizeSM - 1}px;
+    color: ${token.colorPrimary};
+    line-height: 1.2;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   `,
   chevron: css`
     width: ${token.fontSize}px;

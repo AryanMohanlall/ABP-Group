@@ -15,7 +15,6 @@ import {
   logoutSuccess,
   logoutError,
   loadLocalState,
-  githubConnect,
   projectCreated,
   authInitialized,
 } from "./actions";
@@ -64,9 +63,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         password,
         rememberClient: true,
       });
-      const { accessToken, expireInSeconds, userId } = res.data.result;
-      const user: IUser = { accessToken, expireInSeconds, userId };
+      const {
+        accessToken,
+        expireInSeconds,
+        userId,
+        userName,
+        name,
+        surname,
+        emailAddress,
+        roleNames,
+      } = res.data.result;
       setAuthToken(accessToken);
+      const user: IUser = {
+        accessToken,
+        expireInSeconds,
+        userId,
+        userName,
+        name,
+        surname,
+        emailAddress,
+        roleNames: Array.isArray(roleNames) ? roleNames : [],
+      };
       sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       dispatch(loginSuccess(user));
       return user;
@@ -121,16 +138,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (stored) {
         const user: IUser = JSON.parse(stored);
         if (user?.accessToken && user?.userId) {
-          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
-          dispatch(githubConnect());
+          window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
           return;
         }
       }
     } catch {
-      // Fallback to OAuth redirect below.
+      // Continue to redirect to login below.
     }
 
-    window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
+    window.location.href = "/login?error=github_requires_login";
   };
 
   const markProjectCreated = () => {

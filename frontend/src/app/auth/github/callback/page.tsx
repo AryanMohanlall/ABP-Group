@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
 const GITHUB_CONNECTED_KEY = "github_connected";
@@ -29,28 +28,16 @@ function GitHubCallback() {
 
     deleteCookie("github_auth_result");
 
-    const [accessToken, userId, expireInSeconds] = raw.split("|");
-
-    if (!accessToken || !userId) {
-      router.replace("/login?error=missing_token");
+    const currentUser = sessionStorage.getItem(AUTH_USER_KEY);
+    if (!currentUser) {
+      router.replace("/login?error=github_requires_login");
       return;
     }
 
-    setAuthToken(accessToken);
-
-    sessionStorage.setItem(
-      AUTH_USER_KEY,
-      JSON.stringify({
-        userId: Number(userId),
-        accessToken,
-        expireInSeconds: Number(expireInSeconds ?? 86400),
-      }),
-    );
     sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
 
-    // Use a full navigation so the auth provider rehydrates from session storage
-    // before protected routes evaluate authentication state.
-    window.location.replace("/dashboard");
+    // Return the user to project creation after linking GitHub.
+    window.location.replace("/create-project");
   }, [router]);
 
   return (

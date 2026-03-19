@@ -22,7 +22,18 @@ describe("AuthProvider actions", () => {
 
   it("stores token and user session on login", async () => {
     postMock.mockResolvedValueOnce({
-      data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+      data: {
+        result: {
+          accessToken: "token-123",
+          expireInSeconds: 3600,
+          userId: 7,
+          userName: "jane.doe",
+          name: "Jane",
+          surname: "Doe",
+          emailAddress: "jane@example.com",
+          roleNames: ["PlatformAdministrator"],
+        },
+      },
     });
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -38,7 +49,16 @@ describe("AuthProvider actions", () => {
 
     expect(setAuthTokenMock).toHaveBeenCalledWith("token-123");
     expect(sessionStorage.getItem("auth_user")).toBe(
-      JSON.stringify({ accessToken: "token-123", expireInSeconds: 3600, userId: 7 })
+      JSON.stringify({
+        accessToken: "token-123",
+        expireInSeconds: 3600,
+        userId: 7,
+        userName: "jane.doe",
+        name: "Jane",
+        surname: "Doe",
+        emailAddress: "jane@example.com",
+        roleNames: ["PlatformAdministrator"],
+      })
     );
   });
 
@@ -48,7 +68,18 @@ describe("AuthProvider actions", () => {
         return Promise.resolve({ data: { result: {} } });
       }
       return Promise.resolve({
-        data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+        data: {
+          result: {
+            accessToken: "token-123",
+            expireInSeconds: 3600,
+            userId: 7,
+            userName: "jane.doe",
+            name: "Jane",
+            surname: "Doe",
+            emailAddress: "jane@example.com",
+            roleNames: ["PlatformAdministrator"],
+          },
+        },
       });
     });
 
@@ -83,7 +114,18 @@ describe("AuthProvider actions", () => {
         return Promise.resolve({ data: { result: {} } });
       }
       return Promise.resolve({
-        data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+        data: {
+          result: {
+            accessToken: "token-123",
+            expireInSeconds: 3600,
+            userId: 7,
+            userName: "jane.doe",
+            name: "Jane",
+            surname: "Doe",
+            emailAddress: "jane@example.com",
+            roleNames: ["PlatformAdministrator"],
+          },
+        },
       });
     });
 
