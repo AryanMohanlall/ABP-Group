@@ -46,8 +46,7 @@ export interface IProjectItem {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status: ProjectStatus;
-  statusMessage?: string | null;
-  templateId?: number | null;
+  lastDeploymentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
