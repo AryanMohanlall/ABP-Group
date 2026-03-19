@@ -2,7 +2,7 @@ import { createStyles } from "antd-style";
 
 export const useStyles = createStyles(({ token, css }) => ({
   sidebar: css`
-    width: var(--sidebar-width, ${token.paddingXL * 6.5}px);
+    width: var(--sidebar-width, ${token.paddingXL * 7.5}px);
     height: 100vh;
     background: rgba(18, 30, 35, 0.88);
     color: ${token.colorText};
@@ -219,25 +219,26 @@ export const useStyles = createStyles(({ token, css }) => ({
   footer: css`
     margin-top: auto;
     padding-top: ${token.padding}px;
+    display: flex;
+    flex-direction: column;
+    gap: ${token.marginSM}px;
     border-top: 1px solid rgba(34, 197, 94, 0.25);
   `,
-  profileButton: css`
+  profileCard: css`
     width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM}px;
+    align-items: flex-start;
+    gap: ${token.margin}px;
+    padding: ${token.padding}px;
     border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: none;
-    background: transparent;
-    color: ${token.colorBgContainer};
-    cursor: pointer;
-    transition: background 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.06);
-    }
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.14),
+      rgba(255, 255, 255, 0.04)
+    );
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(7px);
   `,
   logoutButton: css`
     width: 100%;
@@ -248,48 +249,90 @@ export const useStyles = createStyles(({ token, css }) => ({
     margin-top: ${token.marginSM}px;
     padding: ${token.paddingSM}px ${token.padding}px;
     border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: transparent;
-    color: ${token.colorTextSecondary};
+    border: 1px solid rgba(255, 120, 120, 0.35);
+    background: rgba(255, 95, 95, 0.06);
+    color: rgba(255, 191, 191, 0.96);
+    font-weight: ${token.fontWeightStrong};
     cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease;
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease,
+      border-color 0.2s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: ${token.colorBgContainer};
+      background: rgba(255, 95, 95, 0.18);
+      border-color: rgba(255, 140, 140, 0.55);
+      color: rgba(255, 235, 235, 0.98);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
     }
   `,
   logoutIcon: css`
     width: ${token.fontSize}px;
     height: ${token.fontSize}px;
+    color: currentColor;
   `,
   profileInfo: css`
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: ${token.marginSM}px;
     min-width: 0;
+    width: 100%;
   `,
   avatar: css`
-    width: ${token.paddingXL}px;
-    height: ${token.paddingXL}px;
+    width: ${token.paddingLG + token.paddingSM}px;
+    height: ${token.paddingLG + token.paddingSM}px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.95),
+      rgba(14, 165, 233, 0.9)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.28);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
-    color: #ffffff;
+    color: ${token.colorBgContainer};
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.24);
   `,
   profileName: css`
-    font-size: ${token.fontSizeSM}px;
+    font-size: ${token.fontSizeLG}px;
     font-weight: ${token.fontWeightStrong};
-    color: #ffffff;
+    color: white;
+    line-height: 1.25;
   `,
-  chevron: css`
-    width: ${token.fontSize}px;
-    height: ${token.fontSize}px;
-    color: ${token.colorTextSecondary};
+  profileTextBlock: css`
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 4px;
+    flex: 1;
+  `,
+  profileMeta: css`
+    font-size: ${token.fontSizeSM}px;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.25;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  `,
+  roleBadge: css`
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 2px;
+    padding: 3px 8px;
+    border-radius: ${token.borderRadius}px;
+    background: rgba(56, 189, 248, 0.2);
+    color: rgba(191, 236, 255, 0.98);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    font-size: ${token.fontSizeSM - 1}px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
   `,
   focusRing: css`
     &:focus-visible {

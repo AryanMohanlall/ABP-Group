@@ -6,7 +6,6 @@ import {
   LayoutTemplateIcon,
   SettingsIcon,
   PlusIcon,
-  ChevronDownIcon,
   BarChart3Icon,
   UsersIcon,
   LayersIcon,
@@ -32,6 +31,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const displayName = [user?.name, user?.surname].filter(Boolean).join(" ").trim() || user?.userName || "User";
   const usernameLabel = user?.userName ? `@${user.userName}` : "@unknown";
   const emailLabel = user?.emailAddress || "No email available";
+  const identityLabel = emailLabel ? `${usernameLabel} • ${emailLabel}` : usernameLabel;
   const roles = user?.roleNames ?? [];
   const rolesLabel = roles.length > 0 ? roles.join(", ") : "No role assigned";
   const initials = displayName
@@ -171,18 +171,16 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         )}
 
         <div className={styles.footer}>
-          <button type="button" className={cx(styles.profileButton, styles.focusRing)}>
+          <div className={styles.profileCard}>
             <div className={styles.profileInfo}>
               <div className={styles.avatar}>{initials}</div>
               <div className={styles.profileTextBlock}>
                 <span className={styles.profileName}>{displayName}</span>
-                <span className={styles.profileMeta}>{usernameLabel}</span>
-                <span className={styles.profileMeta}>{emailLabel}</span>
+                {/* <span className={styles.profileMeta}>{identityLabel}</span> */}
                 <span className={styles.roleBadge}>{rolesLabel}</span>
               </div>
             </div>
-            <ChevronDownIcon className={styles.chevron} />
-          </button>
+          </div>
 
           <button
             type="button"
