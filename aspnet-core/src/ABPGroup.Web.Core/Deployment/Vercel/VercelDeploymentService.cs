@@ -1,6 +1,8 @@
 using Abp.Dependency;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -20,7 +22,7 @@ namespace ABPGroup.Deployment.Vercel
             _configuration = configuration;
         }
 
-        public async Task<VercelDeploymentResult> TriggerDeploymentAsync(string repositoryFullName, string branch, string projectName)
+        public async Task<VercelDeploymentResult> TriggerDeploymentAsync(string repositoryFullName, string branch, string projectName, string commitSha)
         {
             if (string.IsNullOrWhiteSpace(repositoryFullName))
             {
@@ -43,6 +45,7 @@ namespace ABPGroup.Deployment.Vercel
 
             var resolvedBranch = string.IsNullOrWhiteSpace(branch) ? "main" : branch.Trim();
             var resolvedProjectName = ResolveProjectName(projectName, repositoryFullName);
+            var deploymentEndpoint = BuildDeploymentEndpoint();
 
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -50,25 +53,78 @@ namespace ABPGroup.Deployment.Vercel
 
             try
             {
+                var query = new Dictionary<string, string>
+                {
+                    ["forceNew"] = "true",
+                    ["skipAutoDetectionConfirmation"] = "true"
+                };
+
+                var teamId = _configuration["Vercel:TeamId"];
+                if (!string.IsNullOrWhiteSpace(teamId))
+                {
+                    query["teamId"] = teamId;
+                }
+
+                var slug = _configuration["Vercel:Slug"];
+                if (!string.IsNullOrWhiteSpace(slug))
+                {
+                    query["slug"] = slug;
+                }
+
+                var projectId = _configuration["Vercel:ProjectId"];
+                var projectNameOrId = !string.IsNullOrWhiteSpace(projectId)
+                    ? projectId
+                    : (_configuration["Vercel:ProjectName"] ?? resolvedProjectName);
+
                 var requestBody = new
                 {
                     name = resolvedProjectName,
+                    project = string.IsNullOrWhiteSpace(projectNameOrId) ? null : projectNameOrId,
+                    target = "production",
+                    withLatestCommit = true,
+                    gitMetadata = new
+                    {
+                        remoteUrl = string.Format("https://github.com/{0}", repositoryFullName),
+                        commitRef = resolvedBranch,
+                        commitSha = string.IsNullOrWhiteSpace(commitSha) ? null : commitSha,
+                        dirty = false,
+                        ci = false
+                    },
                     gitSource = new
                     {
                         type = "github",
                         repo = repositoryFullName,
-                        @ref = resolvedBranch
+                        @ref = resolvedBranch,
+                        sha = string.IsNullOrWhiteSpace(commitSha) ? null : commitSha
                     }
                 };
 
-                var response = await client.PostAsJsonAsync("https://api.vercel.com/v13/deployments", requestBody);
+                var requestUri = BuildRequestUri(deploymentEndpoint, query);
+                var response = await client.PostAsJsonAsync(requestUri, requestBody);
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
+                    var parsedError = TryExtractVercelError(errorBody);
+
+                    var errorParts = new List<string>
+                    {
+                        string.Format("Vercel deployment request failed ({0}).", (int)response.StatusCode)
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(parsedError))
+                    {
+                        errorParts.Add(parsedError);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(errorBody))
+                    {
+                        errorParts.Add(errorBody);
+                    }
+
                     return new VercelDeploymentResult
                     {
                         Triggered = false,
-                        ErrorMessage = string.Format("Vercel deployment request failed ({0}): {1}", (int)response.StatusCode, errorBody)
+                        ErrorMessage = string.Join(" ", errorParts.Where(p => !string.IsNullOrWhiteSpace(p)))
                     };
                 }
 
@@ -91,6 +147,37 @@ namespace ABPGroup.Deployment.Vercel
                     ErrorMessage = ex.Message
                 };
             }
+        }
+
+        private string BuildDeploymentEndpoint()
+        {
+            var endpoint = _configuration["Vercel:DeploymentsEndpoint"];
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                return "https://api.vercel.com/v13/deployments";
+            }
+
+            return endpoint;
+        }
+
+        private static string BuildRequestUri(string endpoint, IDictionary<string, string> query)
+        {
+            if (query == null || query.Count == 0)
+            {
+                return endpoint;
+            }
+
+            var separator = endpoint.Contains("?") ? "&" : "?";
+            var queryString = string.Join("&", query
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value != null)
+                .Select(kv => string.Format("{0}={1}", Uri.EscapeDataString(kv.Key), Uri.EscapeDataString(kv.Value))));
+
+            if (string.IsNullOrWhiteSpace(queryString))
+            {
+                return endpoint;
+            }
+
+            return string.Format("{0}{1}{2}", endpoint, separator, queryString);
         }
 
         private static string ResolveProjectName(string projectName, string repositoryFullName)
@@ -161,6 +248,38 @@ namespace ABPGroup.Deployment.Vercel
             return string.Format("https://{0}", value.TrimStart('/'));
         }
 
+        private static string TryExtractVercelError(string rawError)
+        {
+            if (string.IsNullOrWhiteSpace(rawError))
+            {
+                return null;
+            }
+
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Deserialize<VercelErrorResponse>(rawError);
+                if (payload == null)
+                {
+                    return null;
+                }
+
+                var message = payload.Error != null ? payload.Error.Message : null;
+                if (string.IsNullOrWhiteSpace(message))
+                {
+                    return null;
+                }
+
+                var code = payload.Error.Code;
+                return string.IsNullOrWhiteSpace(code)
+                    ? message
+                    : string.Format("{0}: {1}", code, message);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private class VercelCreateDeploymentResponse
         {
             [JsonPropertyName("id")]
@@ -174,6 +293,21 @@ namespace ABPGroup.Deployment.Vercel
 
             [JsonPropertyName("state")]
             public string State { get; set; }
+        }
+
+        private class VercelErrorResponse
+        {
+            [JsonPropertyName("error")]
+            public VercelErrorDetail Error { get; set; }
+        }
+
+        private class VercelErrorDetail
+        {
+            [JsonPropertyName("code")]
+            public string Code { get; set; }
+
+            [JsonPropertyName("message")]
+            public string Message { get; set; }
         }
     }
 }

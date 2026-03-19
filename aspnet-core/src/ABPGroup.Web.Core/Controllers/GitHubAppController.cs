@@ -389,7 +389,8 @@ namespace ABPGroup.Controllers
                     deploymentResult = await _vercelDeploymentService.TriggerDeploymentAsync(
                         repositoryFullName,
                         result.Branch,
-                        project.Name);
+                        project.Name,
+                        result.CommitSha);
 
                     if (deploymentResult == null)
                     {

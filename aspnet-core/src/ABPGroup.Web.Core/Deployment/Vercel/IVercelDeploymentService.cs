@@ -4,7 +4,7 @@ namespace ABPGroup.Deployment.Vercel
 {
     public interface IVercelDeploymentService
     {
-        Task<VercelDeploymentResult> TriggerDeploymentAsync(string repositoryFullName, string branch, string projectName);
+        Task<VercelDeploymentResult> TriggerDeploymentAsync(string repositoryFullName, string branch, string projectName, string commitSha);
     }
 
     public class VercelDeploymentResult
