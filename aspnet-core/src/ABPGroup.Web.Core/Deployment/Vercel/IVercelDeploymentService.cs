@@ -4,7 +4,16 @@ namespace ABPGroup.Deployment.Vercel
 {
     public interface IVercelDeploymentService
     {
-        Task<VercelDeploymentResult> TriggerDeploymentAsync(string repositoryFullName, string branch, string projectName, string commitSha);
+        /// <summary>
+        /// repoId — numeric GitHub repository ID from the GitHub API response
+        /// (field "id" on repo create/get). Required by Vercel gitSource.
+        /// </summary>
+        Task<VercelDeploymentResult> TriggerDeploymentAsync(
+            string repositoryFullName,
+            long repoId,
+            string branch,
+            string projectName,
+            string commitSha);
     }
 
     public class VercelDeploymentResult

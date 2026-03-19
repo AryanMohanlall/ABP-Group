@@ -21,21 +21,21 @@ namespace ABPGroup.CodeGen
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
 
-        private const string GroqEndpoint  = "https://api.groq.com/openai/v1/chat/completions";
+        private const string GroqEndpoint = "https://api.groq.com/openai/v1/chat/completions";
         private const string DefaultOutput = "/app/GeneratedApps";
-        private const int    MaxFixRetries = 3;
+        private const int MaxFixRetries = 3;
 
         private readonly string _outputBase;
         private readonly string _localCopyPath;
-        private readonly bool   _skipBuild;
+        private readonly bool _skipBuild;
 
         public CodeGenAppService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClientFactory = httpClientFactory;
-            _configuration     = configuration;
-            _outputBase        = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
-            _localCopyPath     = _configuration["CodeGen:LocalCopyPath"];
-            _skipBuild         = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
+            _configuration = configuration;
+            _outputBase = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
+            _localCopyPath = _configuration["CodeGen:LocalCopyPath"];
+            _skipBuild = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -48,7 +48,7 @@ namespace ABPGroup.CodeGen
                 throw new ArgumentNullException(nameof(request));
 
             var projectName = SanitizeDirName(request.Name);
-            var projectDir  = Path.Combine(_outputBase, projectName);
+            var projectDir = Path.Combine(_outputBase, projectName);
 
             // 1. Scaffold boilerplate (zero LLM tokens)
             var scaffold = ScaffoldBoilerplate(request);
@@ -74,7 +74,7 @@ namespace ABPGroup.CodeGen
                 Logger.Info($"Copied project to local path: {localDir}");
             }
 
-            result.OutputPath         = projectDir;
+            result.OutputPath = projectDir;
             result.GeneratedProjectId = request.Id;
             Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
             return result;
@@ -84,8 +84,8 @@ namespace ABPGroup.CodeGen
             CreateUpdateProjectDto request, List<GeneratedFile> scaffold)
         {
             var scaffoldedPaths = scaffold.Select(f => f.Path).ToHashSet();
-            var systemPrompt    = BuildSystemPrompt(request, scaffoldedPaths);
-            var userPrompt      = BuildUserPrompt(request);
+            var systemPrompt = BuildSystemPrompt(request, scaffoldedPaths);
+            var userPrompt = BuildUserPrompt(request);
 
             var result = await CallGroqAsync(systemPrompt, userPrompt);
             if (result?.Files != null && result.Files.Count > 0)
@@ -151,9 +151,9 @@ namespace ABPGroup.CodeGen
             if (input.Framework != Framework.NextJS)
                 return new List<GeneratedFile>();
 
-            var name     = input.Name ?? "my-app";
+            var name = input.Name ?? "my-app";
             var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
-            var auth      = input.IncludeAuth;
+            var auth = input.IncludeAuth;
 
             var files = new List<GeneratedFile>
             {
@@ -179,47 +179,47 @@ namespace ABPGroup.CodeGen
         {
             var deps = new Dictionary<string, string>
             {
-                ["next"]      = "^15.1.0",
-                ["react"]     = "^19.0.0",
+                ["next"] = "^15.1.0",
+                ["react"] = "^19.0.0",
                 ["react-dom"] = "^19.0.0"
             };
             if (prisma) deps["@prisma/client"] = "^6.0.0";
-            if (mongo)  deps["mongoose"]       = "^8.0.0";
+            if (mongo) deps["mongoose"] = "^8.0.0";
             if (auth)
             {
                 deps["next-auth"] = "^5.0.0-beta.25";
-                deps["bcryptjs"]  = "^2.4.3";
+                deps["bcryptjs"] = "^2.4.3";
             }
 
             var pkg = new Dictionary<string, object>
             {
-                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
+                ["name"] = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
                 ["version"] = "0.1.0",
                 ["private"] = true,
                 ["scripts"] = new Dictionary<string, string>
                 {
-                    ["dev"]   = "next dev --turbopack",
+                    ["dev"] = "next dev --turbopack",
                     ["build"] = "next build",
                     ["start"] = "next start",
-                    ["lint"]  = "next lint"
+                    ["lint"] = "next lint"
                 },
                 ["dependencies"] = deps,
                 ["devDependencies"] = new Dictionary<string, string>
                 {
-                    ["typescript"]          = "^5.7.0",
-                    ["@types/node"]         = "^22.0.0",
-                    ["@types/react"]        = "^19.0.0",
-                    ["@types/react-dom"]    = "^19.0.0",
+                    ["typescript"] = "^5.7.0",
+                    ["@types/node"] = "^22.0.0",
+                    ["@types/react"] = "^19.0.0",
+                    ["@types/react-dom"] = "^19.0.0",
                     ["@tailwindcss/postcss"] = "^4.0.0",
-                    ["tailwindcss"]         = "^4.0.0",
-                    ["eslint"]              = "^9.0.0",
-                    ["eslint-config-next"]  = "^15.0.0"
+                    ["tailwindcss"] = "^4.0.0",
+                    ["eslint"] = "^9.0.0",
+                    ["eslint-config-next"] = "^15.0.0"
                 }
             };
 
             return new GeneratedFile
             {
-                Path    = "package.json",
+                Path = "package.json",
                 Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
             };
         }
@@ -252,13 +252,13 @@ namespace ABPGroup.CodeGen
 
         private static GeneratedFile MakeNextConfig() => new GeneratedFile
         {
-            Path    = "next.config.ts",
+            Path = "next.config.ts",
             Content = "import type { NextConfig } from 'next';\n\nconst nextConfig: NextConfig = {};\n\nexport default nextConfig;\n"
         };
 
         private static GeneratedFile MakePostCssConfig() => new GeneratedFile
         {
-            Path    = "postcss.config.mjs",
+            Path = "postcss.config.mjs",
             Content = "const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n"
         };
 
@@ -285,7 +285,7 @@ export default function RootLayout({{ children }}: {{ children: React.ReactNode 
 
         private static GeneratedFile MakeGlobalsCss() => new GeneratedFile
         {
-            Path    = "src/app/globals.css",
+            Path = "src/app/globals.css",
             Content = "@import 'tailwindcss';\n"
         };
 
@@ -354,8 +354,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         private string BuildSystemPrompt(CreateUpdateProjectDto input, HashSet<string> scaffolded)
         {
             var framework = FormatFramework(input.Framework);
-            var db        = FormatDatabase(input.DatabaseOption);
-            var auth      = input.IncludeAuth ? "next-auth v5 (pre-configured in src/lib/auth.ts)" : "none";
+            var db = FormatDatabase(input.DatabaseOption);
+            var auth = input.IncludeAuth ? "next-auth v5 (pre-configured in src/lib/auth.ts)" : "none";
 
             var scaffoldNote = scaffolded.Count > 0
                 ? $"\nThese files are ALREADY generated — do NOT output them:\n{string.Join(", ", scaffolded)}"
@@ -363,11 +363,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
             var stackRules = input.Framework switch
             {
-                Framework.NextJS     => "- Next.js 15 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
-                Framework.ReactVite  => "- React 19, Vite, Tailwind CSS v4, react-router-dom v7",
-                Framework.Angular    => "- Angular 19 standalone components, signals",
-                Framework.Vue        => "- Vue 3 Composition API, Vite, Tailwind CSS v4",
-                _                    => "- Follow framework best practices"
+                Framework.NextJS => "- Next.js 16 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
+                Framework.ReactVite => "- React 19, Vite, Tailwind CSS v4, react-router-dom v7",
+                Framework.Angular => "- Angular 19 standalone components, signals",
+                Framework.Vue => "- Vue 3 Composition API, Vite, Tailwind CSS v4",
+                _ => "- Follow framework best practices"
             };
 
             return $@"You are a code generator. Output ONLY files. No markdown, no explanations, no commentary.
@@ -440,7 +440,7 @@ path/to/file.tsx
             foreach (var file in files)
             {
                 var normalized = file.Path
-                    .Replace("/",  Path.DirectorySeparatorChar.ToString())
+                    .Replace("/", Path.DirectorySeparatorChar.ToString())
                     .Replace("\\", Path.DirectorySeparatorChar.ToString());
                 var fullPath = Path.Combine(projectDir, normalized);
                 var dir = Path.GetDirectoryName(fullPath);
@@ -459,8 +459,8 @@ path/to/file.tsx
             foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
                 var relativePath = Path.GetRelativePath(sourceDir, file);
-                var destFile     = Path.Combine(destDir, relativePath);
-                var destFileDir  = Path.GetDirectoryName(destFile);
+                var destFile = Path.Combine(destDir, relativePath);
+                var destFileDir = Path.GetDirectoryName(destFile);
 
                 if (!string.IsNullOrEmpty(destFileDir) && !Directory.Exists(destFileDir))
                     Directory.CreateDirectory(destFileDir);
@@ -495,18 +495,18 @@ path/to/file.tsx
         {
             var psi = new ProcessStartInfo(command, args)
             {
-                WorkingDirectory       = workingDir,
+                WorkingDirectory = workingDir,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-                CreateNoWindow         = true
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
 
             using var process = new Process { StartInfo = psi };
             var output = new StringBuilder();
 
             process.OutputDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-            process.ErrorDataReceived  += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
 
             process.Start();
             process.BeginOutputReadLine();
@@ -529,7 +529,7 @@ path/to/file.tsx
         private async Task<CodeGenResult> CallGroqAsync(string systemMessage, string userMessage)
         {
             var apiKey = _configuration["Groq:ApiKey"];
-            var model  = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+            var model = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
 
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new Exception("Groq:ApiKey is not configured.");
@@ -542,7 +542,7 @@ path/to/file.tsx
                     new { role = "system", content = systemMessage },
                     new { role = "user",   content = userMessage   }
                 },
-                max_tokens  = 32768,
+                max_tokens = 32768,
                 temperature = 0.1
             };
 
@@ -601,17 +601,17 @@ path/to/file.tsx
         {
             var result = new CodeGenResult
             {
-                Files      = new List<GeneratedFile>(),
+                Files = new List<GeneratedFile>(),
                 ModuleList = new List<string>()
             };
 
             var archStart = text.IndexOf("===ARCHITECTURE===", StringComparison.Ordinal);
-            var archEnd   = text.IndexOf("===END ARCHITECTURE===", StringComparison.Ordinal);
+            var archEnd = text.IndexOf("===END ARCHITECTURE===", StringComparison.Ordinal);
             if (archStart >= 0 && archEnd > archStart)
                 result.ArchitectureSummary = text.Substring(archStart + 18, archEnd - archStart - 18).Trim();
 
             var modStart = text.IndexOf("===MODULES===", StringComparison.Ordinal);
-            var modEnd   = text.IndexOf("===END MODULES===", StringComparison.Ordinal);
+            var modEnd = text.IndexOf("===END MODULES===", StringComparison.Ordinal);
             if (modStart >= 0 && modEnd > modStart)
                 result.ModuleList = text.Substring(modStart + 13, modEnd - modStart - 13)
                     .Trim().Split(',').Select(m => m.Trim()).Where(m => m.Length > 0).ToList();
@@ -626,7 +626,7 @@ path/to/file.tsx
                 if (contentMarker < 0) break;
 
                 var fileEnd = text.IndexOf("===END FILE===", contentMarker, StringComparison.Ordinal);
-                var path    = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
+                var path = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
                 var content = fileEnd >= 0
                     ? text.Substring(contentMarker + 13, fileEnd - contentMarker - 13).Trim()
                     : text.Substring(contentMarker + 13).Trim();
@@ -663,17 +663,17 @@ path/to/file.tsx
 
         private static string FormatFramework(Framework fw) => fw switch
         {
-            Framework.ReactVite    => "React (Vite)",
-            Framework.Angular      => "Angular",
-            Framework.Vue          => "Vue",
+            Framework.ReactVite => "React (Vite)",
+            Framework.Angular => "Angular",
+            Framework.Vue => "Vue",
             Framework.DotNetBlazor => ".NET Blazor",
-            _                      => "Next.js 15 (App Router)"
+            _ => "Next.js 15 (App Router)"
         };
 
         private static string FormatDatabase(DatabaseOption opt) => opt switch
         {
             DatabaseOption.MongoCloud => "MongoDB via Mongoose",
-            _                        => "PostgreSQL via Prisma"
+            _ => "PostgreSQL via Prisma"
         };
     }
 }
