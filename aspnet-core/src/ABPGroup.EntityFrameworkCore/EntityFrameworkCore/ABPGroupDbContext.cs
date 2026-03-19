@@ -52,5 +52,26 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<Template>(builder =>
+        {
+            builder.ToTable("Templates");
+            builder.Property(x => x.Name).IsRequired().HasMaxLength(128);
+            builder.Property(x => x.Description).HasMaxLength(1000);
+            builder.Property(x => x.Author).HasMaxLength(128);
+            builder.Property(x => x.Tags).HasMaxLength(500);
+            builder.Property(x => x.ThumbnailUrl).HasMaxLength(500);
+            builder.Property(x => x.PreviewUrl).HasMaxLength(500);
+            builder.Property(x => x.Version).HasMaxLength(20);
+            builder.Property(x => x.ScaffoldConfig).HasColumnType("nvarchar(max)");
+            builder.Property(x => x.Category).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Framework).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Language).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Database).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Status).HasConversion<int>().IsRequired();
+            builder.HasIndex(x => x.Category);
+            builder.HasIndex(x => x.Status);
+            builder.HasIndex(x => x.IsFeatured);
+        });
     }
 }

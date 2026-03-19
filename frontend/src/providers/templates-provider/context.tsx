@@ -1,38 +1,85 @@
 "use client";
 
 import { createContext } from "react";
+import {
+  Framework,
+  ProgrammingLanguage,
+  DatabaseOption,
+} from "../projects-provider/context";
+
+export enum TemplateCategory {
+  AppsAndGames = 1,
+  LandingPages = 2,
+  Dashboards = 3,
+  ECommerce = 4,
+  Components = 5,
+  AI = 6,
+  Portfolio = 7,
+  Blog = 8,
+  SaaS = 9,
+  Other = 99,
+}
+
+export enum TemplateStatus {
+  Draft = 1,
+  Active = 2,
+  Deprecated = 3,
+}
 
 export interface ITemplateItem {
   id: number;
   name: string;
-  slug: string;
   description?: string | null;
-  previewImageUrl?: string | null;
-  category: string;
-  tags?: string | null;
   author?: string | null;
-  sourceUrl?: string | null;
-  lastUpdatedAt?: string | null;
-  likeCount?: number | null;
-  viewCount?: number | null;
+  category: TemplateCategory;
+  categoryName?: string | null;
+  framework: Framework;
+  language: ProgrammingLanguage;
+  database: DatabaseOption;
+  includesAuth: boolean;
+  tags: string[];
+  thumbnailUrl?: string | null;
+  previewUrl?: string | null;
+  status: TemplateStatus;
+  version: string;
+  isFeatured: boolean;
+  forkCount: number;
+  createdAt: string;
 }
 
 export interface ITemplateCreateInput {
   name: string;
-  slug: string;
   description?: string;
-  previewImageUrl?: string;
-  category: string;
-  tags?: string;
   author?: string;
-  sourceUrl?: string;
-  lastUpdatedAt?: string | null;
-  likeCount?: number | null;
-  viewCount?: number | null;
+  category: TemplateCategory;
+  framework: Framework;
+  language: ProgrammingLanguage;
+  database: DatabaseOption;
+  includesAuth: boolean;
+  tags?: string; // Comma-separated
+  thumbnailUrl?: string;
+  previewUrl?: string;
+  status: TemplateStatus;
+  version: string;
+  isFeatured: boolean;
+  scaffoldConfig?: string;
 }
 
 export interface ITemplateUpdateInput extends ITemplateCreateInput {
   id: number;
+}
+
+export interface ITemplateListInput {
+  category?: TemplateCategory;
+  framework?: Framework;
+  database?: DatabaseOption;
+  includesAuth?: boolean;
+  status?: TemplateStatus;
+  searchTerm?: string;
+  isFeatured?: boolean;
+  skipCount?: number;
+  maxResultCount?: number;
+  sorting?: string;
 }
 
 export interface ITemplateStateContext {
@@ -45,11 +92,14 @@ export interface ITemplateStateContext {
 }
 
 export interface ITemplateActionContext {
-  fetchAll: () => Promise<void>;
+  fetchAll: (input?: ITemplateListInput) => Promise<void>;
   fetchById: (id: number) => Promise<void>;
   create: (data: ITemplateCreateInput) => Promise<void>;
   update: (data: ITemplateUpdateInput) => Promise<void>;
   remove: (id: number) => Promise<void>;
+  publish: (id: number) => Promise<void>;
+  deprecate: (id: number) => Promise<void>;
+  setFeatured: (id: number, featured: boolean) => Promise<void>;
 }
 
 export const INITIAL_STATE: ITemplateStateContext = {
@@ -68,4 +118,7 @@ export const TemplateActionContext = createContext<ITemplateActionContext>({
   create: async () => {},
   update: async () => {},
   remove: async () => {},
+  publish: async () => {},
+  deprecate: async () => {},
+  setFeatured: async () => {},
 });
