@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Input, Select, Spin, Tag } from "antd";
+import { PlusIcon } from "lucide-react";
 import {
   useTemplateAction,
   useTemplateState,
 } from "@/providers/templates-provider";
 import { useStyles } from "./styles/style";
 import { TemplateCategory } from "@/providers/templates-provider/context";
+import { useRouter } from "next/navigation";
 
 export default function TemplatesPage() {
   const { styles } = useStyles();
+  const router = useRouter();
   const { fetchAll } = useTemplateAction();
   const { items, isPending, isError } = useTemplateState();
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,6 +89,13 @@ export default function TemplatesPage() {
           />
           <Button onClick={() => fetchAll()} loading={isPending}>
             Refresh
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusIcon size={16} />}
+            onClick={() => router.push("/templates/create")}
+          >
+            Add Template
           </Button>
         </div>
       </div>

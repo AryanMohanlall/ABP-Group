@@ -16,9 +16,7 @@ public class TemplateAppService
 {
     public TemplateAppService(IRepository<Template, int> repository) : base(repository)
     {
-        CreatePermissionName = PermissionNames.Pages_Templates_Create;
-        UpdatePermissionName = PermissionNames.Pages_Templates_Edit;
-        DeletePermissionName = PermissionNames.Pages_Templates_Delete;
+
     }
 
     // Tenant-facing — read only
