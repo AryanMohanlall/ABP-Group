@@ -38,7 +38,7 @@ const API_BASE_URL =
 const clearStoredAuth = () => {
   removeAuthToken();
   sessionStorage.removeItem(AUTH_USER_KEY);
-  sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
+  //sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
