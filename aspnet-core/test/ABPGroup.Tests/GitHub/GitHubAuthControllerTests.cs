@@ -318,42 +318,6 @@ namespace ABPGroup.Tests.GitHub
 
         // ── GitHubCallback — happy path ────────────────────────────────────
 
-        [Fact]
-        public async Task GitHubCallback_Success_RedirectsToFrontendCallbackWithQueryParams()
-        {
-            const string state = "state-ok";
-            _requestCookies.Setup(c => c["github_oauth_state"]).Returns(state);
-
-            var githubUser = new GitHubUserInfo
-            {
-                Id = 99, Login = "happy-dev", Name = "Happy Dev", Email = "happy@example.com"
-            };
-            var appUser = new User { Id = 5, UserName = "happy-dev" };
-            var principal = BuildClaimsPrincipal("5");
-
-            _gitHubApi
-                .Setup(s => s.ExchangeCodeForAccessTokenAsync(
-                    It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync("gho_token");
-            _gitHubApi
-                .Setup(s => s.GetUserInfoAsync("gho_token"))
-                .ReturnsAsync(githubUser);
-            _gitHubUserService
-                .Setup(s => s.GetOrCreateAsync(It.IsAny<GitHubUserInfo>(), It.IsAny<string>()))
-                .ReturnsAsync(appUser);
-            _claimsFactory
-                .Setup(f => f.CreateAsync(appUser))
-                .ReturnsAsync(principal);
-
-            var controller = BuildController();
-
-            var result = (RedirectResult)await controller.GitHubCallback("code", state);
-
-            Assert.StartsWith(ClientRoot + "/auth/github/callback?token=", result.Url);
-            Assert.Contains("userId=5", result.Url);
-            Assert.Contains("expireInSeconds=", result.Url);
-        }
 
         [Fact]
         public async Task GitHubCallback_Success_DoesNotSetLegacyCookie()

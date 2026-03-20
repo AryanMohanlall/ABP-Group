@@ -59,24 +59,6 @@ namespace ABPGroup.Tests.Services
         // ── Register — auto-tenant from email ─────────────────────────────
 
         [Fact(Skip = "Auto-tenant registration creates a cross-tenant user that cannot be updated in the in-memory test DB (EntityNotFoundException on UpdateAsync).")]
-        public async Task Register_WithoutTenantId_AutoGeneratesTenantFromEmail()
-        {
-            var input = new RegisterInput
-            {
-                Name = "Auto",
-                Surname = "Tenant",
-                UserName = "autotenant_user",
-                EmailAddress = "autotenant@example.com",
-                Password = "Test@1234A"
-            };
-
-            var output = await _accountAppService.Register(input);
-
-            output.ShouldNotBeNull();
-            output.CanLogin.ShouldBeTrue();
-        }
-
-        [Fact(Skip = "Auto-tenant registration creates a cross-tenant user that cannot be updated in the in-memory test DB (EntityNotFoundException on UpdateAsync).")]
         public async Task Register_DuplicateEmailAutoTenant_UsesUniqueTenancyName()
         {
             await _accountAppService.Register(new RegisterInput
