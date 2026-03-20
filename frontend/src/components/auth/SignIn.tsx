@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Button, Input } from "antd";
+import { redirect } from "next/navigation";
+import { Button, Input, Divider } from "antd";
 import {
   usePageStyles,
   useCardStyles,
   useInputStyles,
+  useSocialBtnStyles,
+  useDividerStyles,
   useAuthStyles,
 } from "./styles/style";
 import {
+  GitHubIcon,
   MailIcon,
   LockIcon,
   ArrowLeftIcon,
@@ -18,6 +21,13 @@ import {
   BrandingStackIcon,
 } from "./icons";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
+
+const handleGitHubSignIn = () => {
+  window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +42,12 @@ interface InputProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   showToggle?: boolean;
   confirmState?: "match" | "mismatch" | undefined;
+}
+
+interface SocialButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
 }
 
 interface PageProps {
@@ -79,6 +95,20 @@ function AuthInput({
   );
 }
 
+function SocialButton({ icon, label, onClick }: SocialButtonProps) {
+  const { styles } = useSocialBtnStyles();
+  return (
+    <Button block icon={icon} onClick={onClick} className={styles.btn}>
+      {label}
+    </Button>
+  );
+}
+
+function AuthDivider() {
+  const { styles } = useDividerStyles();
+  return <Divider className={styles.divider}>or</Divider>;
+}
+
 function AuthCard({ children }: { readonly children: React.ReactNode }) {
   const { styles } = useCardStyles();
   return <div className={styles.card}>{children}</div>;
@@ -102,7 +132,6 @@ function AuthLogo() {
 
 // ─── Sign In ──────────────────────────────────────────────────────────────────
 function SignInPage({ onSwitch }: PageProps) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -111,17 +140,15 @@ function SignInPage({ onSwitch }: PageProps) {
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
 
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
     setAttempted(true);
     if (!email || !password) {
       setValidationError("Please enter your email and password.");
       return;
     }
     setValidationError("");
-    const user = await login(email, password);
-    if (user) {
-      router.replace("/dashboard");
-    }
+    void login(email, password);
+    redirect("/dashboard");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -139,6 +166,14 @@ function SignInPage({ onSwitch }: PageProps) {
         <h2 className={styles.heading}>Welcome back</h2>
         <p className={styles.subtitle}>Sign in to your PromptForge account</p>
       </div>
+
+      <SocialButton
+        icon={<GitHubIcon />}
+        label="Continue with GitHub"
+        onClick={handleGitHubSignIn}
+      />
+
+      <AuthDivider />
 
       <div className={styles.formGroup}>
         <AuthInput
