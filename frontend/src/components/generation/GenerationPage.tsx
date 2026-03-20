@@ -177,6 +177,7 @@ const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
   const searchParams = useSearchParams();

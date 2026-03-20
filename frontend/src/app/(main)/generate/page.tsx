@@ -8,7 +8,7 @@ import { StackStep } from "@/components/codegen/StackStep";
 import { SpecPreview } from "@/components/codegen/SpecPreview";
 import { GenerationProgress } from "@/components/codegen/GenerationProgress";
 import { GenerationResult } from "@/components/codegen/GenerationResult";
-import type { ICodeGenSession, IGenerationStatus, IStackConfig } from "@/providers/codegen-provider";
+import type { ICodeGenSession, IGenerationStatus } from "@/providers/codegen-provider";
 import {
   ProjectDatabaseOption,
   ProjectFramework,

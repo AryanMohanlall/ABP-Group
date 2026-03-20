@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Spin } from "antd";
 import {
   CheckCircle2Icon,
@@ -28,20 +28,22 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
 
-  const handleStart = useCallback(async () => {
-    try {
-      await startGeneration(sessionId);
-      setStarted(true);
-    } catch {
-      setActivityLog((prev) => [...prev, "Failed to start generation."]);
-    }
-  }, [sessionId, startGeneration]);
-
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    handleStart();
-  }, [handleStart]);
+
+    const controller = new AbortController();
+    startGeneration(sessionId)
+      .then(() => {
+        if (!controller.signal.aborted) setStarted(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setActivityLog((prev) => [...prev, "Failed to start generation."]);
+      });
+
+    return () => controller.abort();
+  }, [sessionId, startGeneration]);
 
   useEffect(() => {
     if (!started) return;
