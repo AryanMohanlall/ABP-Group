@@ -15,13 +15,12 @@ import {
   logoutSuccess,
   logoutError,
   loadLocalState,
-  githubConnect,
   projectCreated,
   authInitialized,
 } from "./actions";
 
 const AUTH_USER_KEY = "auth_user";
-const GITHUB_CONNECTED_KEY = "github_connected";
+const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
 const PROJECT_STORAGE_KEY = "project_created";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
@@ -33,21 +32,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const stored = sessionStorage.getItem(AUTH_USER_KEY);
       const hasCreatedProject = sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+      const isGithubConnected = sessionStorage.getItem(GITHUB_OAUTH_COMPLETE_KEY) === "true";
 
       if (stored) {
         const user: IUser = JSON.parse(stored);
         if (user?.accessToken && user?.userId) {
           setAuthToken(user.accessToken);
           dispatch(loginSuccess(user));
-          // OAuth callback stores auth_user in sessionStorage; treat that as GitHub-connected.
-          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
-          dispatch(loadLocalState({ isGithubConnected: true, hasCreatedProject }));
+          dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
           dispatch(authInitialized());
           return;
         }
       }
 
-      const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
       if (isGithubConnected || hasCreatedProject) {
         dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
       }
@@ -107,7 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       removeAuthToken();
       sessionStorage.removeItem(AUTH_USER_KEY);
-      sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
+      sessionStorage.removeItem(GITHUB_OAUTH_COMPLETE_KEY);
       sessionStorage.removeItem(PROJECT_STORAGE_KEY);
       dispatch(logoutSuccess());
     } catch {
@@ -116,20 +113,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const connectGithub = () => {
-    try {
-      const stored = sessionStorage.getItem(AUTH_USER_KEY);
-      if (stored) {
-        const user: IUser = JSON.parse(stored);
-        if (user?.accessToken && user?.userId) {
-          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
-          dispatch(githubConnect());
-          return;
-        }
-      }
-    } catch {
-      // Fallback to OAuth redirect below.
-    }
-
     window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
   };
 

@@ -1,37 +1,26 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
-
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function deleteCookie(name: string) {
-  document.cookie = `${name}=; Max-Age=0; path=/`;
-}
+const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
 
 function GitHubCallback() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
-/*   useEffect(() => {
-    const raw = getCookie("github_auth_result");
-
-    if (!raw) {
-      router.replace("/login?error=missing_token");
-      return;
-    }
-
-    deleteCookie("github_auth_result");
-
-    const [accessToken, userId, expireInSeconds] = raw.split("|");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("token");
+    const userId = params.get("userId");
+    const expireInSeconds = params.get("expireInSeconds");
 
     if (!accessToken || !userId) {
-      router.replace("/login?error=missing_token");
+      setError(
+        "GitHub sign-in failed: missing or invalid OAuth parameters. Please try again."
+      );
       return;
     }
 
@@ -43,36 +32,40 @@ function GitHubCallback() {
         userId: Number(userId),
         accessToken,
         expireInSeconds: Number(expireInSeconds ?? 86400),
-      }),
+      })
     );
 
+    sessionStorage.setItem(GITHUB_OAUTH_COMPLETE_KEY, "true");
+
     router.replace("/dashboard");
-  }, [router]); */
+  }, [router]);
 
-  useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const accessToken = params.get("token");
-  const userId = params.get("userId");
-  const expireInSeconds = params.get("expireInSeconds");
-
-  if (!accessToken || !userId) {
-    router.replace("/login?error=missing_token");
-    return;
+  if (error) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          gap: "16px",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        <p style={{ color: "#ef4444", fontWeight: 600, maxWidth: 440 }}>
+          {error}
+        </p>
+        <a
+          href="/login"
+          style={{ color: "#6366f1", textDecoration: "underline" }}
+        >
+          Back to login
+        </a>
+      </div>
+    );
   }
-
-  setAuthToken(accessToken);
-
-  sessionStorage.setItem(
-    AUTH_USER_KEY,
-    JSON.stringify({
-      userId: Number(userId),
-      accessToken,
-      expireInSeconds: Number(expireInSeconds ?? 86400),
-    }),
-  );
-
-  router.replace("/dashboard");
-}, [router]);
 
   return (
     <div

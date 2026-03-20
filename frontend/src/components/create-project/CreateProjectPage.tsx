@@ -21,7 +21,7 @@ interface CreateProjectPageProps {
 
 export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const { styles, cx } = useStyles();
-  const { isGithubConnected, hasCreatedProject } = useAuthState();
+  const { isGithubConnected } = useAuthState();
   const { connectGithub, markProjectCreated } = useAuthAction();
   const { create } = useProjectAction();
   const { items: templates, isPending: isLoadingTemplates } = useTemplateState();
@@ -56,7 +56,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
 
   const handleNext = () => setCurrentStep((prev) => Math.min(prev + 1, 3));
   const handleBack = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
-  const requiresGithub = !hasCreatedProject && !isGithubConnected;
+  const requiresGithub = !isGithubConnected;
 
   const mapFramework = (value: string): ProjectFramework => {
     switch (value) {

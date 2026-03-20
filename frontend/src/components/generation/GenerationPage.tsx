@@ -25,6 +25,7 @@ import {
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
+import { useAuthState } from "@/providers/auth-provider";
 import { getAxiosInstance } from "@/utils/axiosInstance";
 
 interface GenerationPageProps {
@@ -182,6 +183,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   const { selected: project } = useProjectState();
   const { fetchById } = useProjectAction();
+  const { isGithubConnected } = useAuthState();
 
   // Resolve project ID from state, URL param, or sessionStorage
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -333,6 +335,11 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   };
 
   const handleDeploy = async () => {
+    if (!isGithubConnected) {
+      setDeployError("GitHub must be connected before deploying. Please complete GitHub OAuth first.");
+      return;
+    }
+
     const sanitizedRepoName = repoName.trim();
     if (!sanitizedRepoName || isDeploying || isCreatingRepo) {
       return;
