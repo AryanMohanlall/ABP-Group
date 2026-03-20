@@ -217,6 +217,14 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
             builder.HasIndex(x => x.UserId);
             builder.HasIndex(x => x.TemplateId);
             builder.HasIndex(x => new { x.UserId, x.TemplateId }).IsUnique();
+            builder.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(x => x.Template)
+                .WithMany()
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

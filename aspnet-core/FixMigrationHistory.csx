@@ -6,7 +6,7 @@ using Npgsql;
 
 var connStr = "Host=dpg-d6q19175gffc73ducn0g-a.oregon-postgres.render.com;Port=5432;Database=abpgroup;Username=abpgroup_user;Password=Q5TpUyf1LIzmKsifececMQ2Q3er2GCdW;Ssl Mode=Require;Trust Server Certificate=true;";
 
-using var conn = new NpgsqlConnection(connStr);
+var conn = new NpgsqlConnection(connStr);
 conn.Open();
 
 var migrations = new[] {
@@ -17,7 +17,7 @@ var migrations = new[] {
 
 foreach (var m in migrations)
 {
-    using var cmd = new NpgsqlCommand(
+    var cmd = new NpgsqlCommand(
         "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES (@m, @v) ON CONFLICT DO NOTHING", conn);
     cmd.Parameters.AddWithValue("m", m);
     cmd.Parameters.AddWithValue("v", "9.0.6");
