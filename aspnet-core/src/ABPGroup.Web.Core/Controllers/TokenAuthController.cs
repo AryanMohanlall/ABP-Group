@@ -164,7 +164,7 @@ namespace ABPGroup.Controllers
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
+           /*  Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,
@@ -172,7 +172,8 @@ namespace ABPGroup.Controllers
                 MaxAge = TimeSpan.FromMinutes(2)
             });
 
-            return Redirect($"{clientRoot}/auth/github/callback");
+            return Redirect($"{clientRoot}/auth/github/callback"); */
+            return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
         }
 
         private string GetGitHubOAuthConfig(string key)
