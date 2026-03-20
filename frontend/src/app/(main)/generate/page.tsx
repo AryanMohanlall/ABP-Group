@@ -4,11 +4,11 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StepIndicator } from "@/components/StepIndicator";
 import { CaptureStep } from "@/components/codegen/CaptureStep";
-import { StackStep } from "@/components/codegen/StackStep";
+import { StackStep, type ExtraConfig } from "@/components/codegen/StackStep";
 import { SpecPreview } from "@/components/codegen/SpecPreview";
 import { GenerationProgress } from "@/components/codegen/GenerationProgress";
 import { GenerationResult } from "@/components/codegen/GenerationResult";
-import type { ICodeGenSession, IGenerationStatus } from "@/providers/codegen-provider";
+import type { ICodeGenSession, IGenerationStatus, IStackConfig } from "@/providers/codegen-provider";
 import {
   ProjectDatabaseOption,
   ProjectFramework,
@@ -54,14 +54,17 @@ export default function GeneratePage() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [session, setSession] = useState<ICodeGenSession | null>(null);
+  const [extraConfig, setExtraConfig] = useState<ExtraConfig | null>(null);
   const [generationStatus, setGenerationStatus] = useState<IGenerationStatus | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
 
   const handleCaptureNext = (result: ICodeGenSession) => {
     setSession(result);
     setCurrentStep(2);
   };
 
-  const handleStackNext = () => {
+  const handleStackNext = (stack: IStackConfig, extra: ExtraConfig) => {
+    setExtraConfig(extra);
     setCurrentStep(3);
   };
 
@@ -76,6 +79,7 @@ export default function GeneratePage() {
 
   const handleDeploy = async () => {
     if (!session) return;
+    setIsDeploying(true);
 
     try {
       // Create a Project entity from the session so the GenerationPage
@@ -91,6 +95,7 @@ export default function GeneratePage() {
         databaseOption: mapDatabase(stack?.database),
         includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
         status: ProjectStatus.CodeGenerationCompleted,
+        templateId: extraConfig?.templateId ?? undefined,
       });
 
       sessionStorage.setItem("generatingProjectId", String(project.id));
@@ -101,6 +106,8 @@ export default function GeneratePage() {
         sessionStorage.setItem("generatingProjectId", String(session.projectId));
       }
       router.push("/generation");
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -151,6 +158,7 @@ export default function GeneratePage() {
           onDeploy={handleDeploy}
           onRetry={handleRetry}
           onBack={handleBackToSpec}
+          isDeploying={isDeploying}
         />
       )}
     </div>

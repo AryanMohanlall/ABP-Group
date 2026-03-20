@@ -96,9 +96,11 @@ export default function PromptForgeLanding() {
           />
           <div className={styles.promptFooter}>
             <span className={styles.promptLabel}>Describe your app</span>
-            <Button type="primary" className={styles.generateBtn}>
-              Generate App
-            </Button>
+            <Link href="/generate">
+              <Button type="primary" className={styles.generateBtn}>
+                Generate App
+              </Button>
+            </Link>
           </div>
         </Card>
       </section>

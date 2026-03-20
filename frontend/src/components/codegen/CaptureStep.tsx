@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Input, Tag, Spin, message } from "antd";
-import { SparklesIcon, PlusIcon, ArrowRightIcon } from "lucide-react";
+import { Button, Input, Tag, Spin, message, Switch } from "antd";
+import { SparklesIcon, PlusIcon, ArrowRightIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import { ICodeGenSession } from "@/providers/codegen-provider";
@@ -24,8 +24,9 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
   const [projectName, setProjectName] = useState("");
   const [newFeature, setNewFeature] = useState("");
   const [newEntity, setNewEntity] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
 
-  const maxChars = 5000;
+  const maxChars = 100000;
   const remaining = maxChars - prompt.length;
 
   const handleAnalyze = async () => {
@@ -76,6 +77,7 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
         detectedFeatures: features,
         detectedEntities: entities,
         projectName,
+        isPublic,
       });
     }
   };
@@ -181,6 +183,21 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
               <Button size="small" icon={<PlusIcon size={14} />} onClick={addEntity}>
                 Add
               </Button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <div className={styles.sectionLabel}>Project Visibility</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+              <Switch
+                checked={isPublic}
+                onChange={setIsPublic}
+                checkedChildren={<EyeIcon size={14} />}
+                unCheckedChildren={<EyeOffIcon size={14} />}
+              />
+              <span style={{ fontSize: 14, color: "var(--ant-color-text-secondary)" }}>
+                {isPublic ? "Public - Anyone can view this project" : "Private - Only you can view this project"}
+              </span>
             </div>
           </div>
 

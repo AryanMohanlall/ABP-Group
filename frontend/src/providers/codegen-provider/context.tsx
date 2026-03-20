@@ -141,6 +141,7 @@ export interface ICodeGenSession {
   scaffoldTemplate: string;
   generatedFiles: IGeneratedFile[];
   repairAttempts: number;
+  isPublic: boolean;
   createdAt: string;
   updatedAt: string;
 }

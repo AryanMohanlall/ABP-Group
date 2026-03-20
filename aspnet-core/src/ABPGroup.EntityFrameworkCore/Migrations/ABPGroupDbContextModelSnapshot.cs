@@ -377,6 +377,9 @@ namespace ABPGroup.Migrations
                     b.Property<DateTime?>("GenerationStartedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("NormalizedRequirement")
                         .HasMaxLength(10000)
                         .HasColumnType("character varying(10000)");

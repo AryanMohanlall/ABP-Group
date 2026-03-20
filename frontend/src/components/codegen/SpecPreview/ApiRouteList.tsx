@@ -137,7 +137,7 @@ export function ApiRouteList({ routes, onChange }: ApiRouteListProps) {
         open={modalOpen}
         onOk={handleAdd}
         onCancel={() => setModalOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Select

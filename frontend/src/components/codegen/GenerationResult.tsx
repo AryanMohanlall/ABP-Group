@@ -19,6 +19,7 @@ interface GenerationResultProps {
   onDeploy: () => void;
   onRetry: () => void;
   onBack: () => void;
+  isDeploying?: boolean;
 }
 
 export function GenerationResult({
@@ -27,6 +28,7 @@ export function GenerationResult({
   onDeploy,
   onRetry,
   onBack,
+  isDeploying = false,
 }: GenerationResultProps) {
   const { styles } = useStyles();
   const { isPending, session } = useCodeGenState();
@@ -77,9 +79,10 @@ export function GenerationResult({
                 type="button"
                 className={styles.primaryButton}
                 onClick={onDeploy}
+                disabled={isDeploying}
               >
-                <RocketIcon size={16} />
-                Commit &amp; Deploy
+                {isDeploying ? <Spin size="small" /> : <RocketIcon size={16} />}
+                {isDeploying ? "Deploying..." : "Commit & Deploy"}
               </button>
               <button
                 type="button"

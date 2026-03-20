@@ -25,6 +25,7 @@ public class CodeGenSession : Entity<Guid>
     public string CurrentPhase { get; set; }
     public string CompletedStepsJson { get; set; }
     public string ErrorMessage { get; set; }
+    public bool IsPublic { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

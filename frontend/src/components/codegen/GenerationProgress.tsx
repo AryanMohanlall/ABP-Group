@@ -71,15 +71,22 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
   }, [started, sessionId, pollStatus, onComplete, activityLog.length]);
 
   const validations = generationStatus?.validationResults ?? [];
-  const totalValidations = validations.length;
-  const passedCount = validations.filter((v) => v.status === "passed").length;
-  const failedCount = validations.filter((v) => v.status === "failed").length;
-  const progressPercent = totalValidations > 0
-    ? Math.round(((passedCount + failedCount) / totalValidations) * 100)
-    : 0;
-
   const isComplete = generationStatus?.isComplete ?? false;
   const hasError = !!generationStatus?.error;
+
+  const currentStepsCount = generationStatus?.completedSteps?.length ?? activityLog.length;
+  const estimatedTotalSteps = 8;
+  
+  let progressPercent = 0;
+
+  if (isComplete && !hasError) {
+    progressPercent = 100;
+  } else if (hasError) {
+    progressPercent = Math.min(Math.round((currentStepsCount / estimatedTotalSteps) * 100), 100);
+  } else {
+    progressPercent = Math.min(Math.round((currentStepsCount / estimatedTotalSteps) * 90), 95);
+    progressPercent = Math.max(5, progressPercent); // Guarantee at least 5% starting visual
+  }
 
   const getValidationIcon = (status: IValidationResult["status"]) => {
     switch (status) {

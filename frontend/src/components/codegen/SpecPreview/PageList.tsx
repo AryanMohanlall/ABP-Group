@@ -108,7 +108,7 @@ export function PageList({ pages, onChange }: PageListProps) {
         open={modalOpen}
         onOk={handleAdd}
         onCancel={() => setModalOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Input
