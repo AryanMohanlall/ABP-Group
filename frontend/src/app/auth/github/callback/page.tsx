@@ -1,14 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
 const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
 
 function GitHubCallback() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,8 +35,10 @@ function GitHubCallback() {
 
     sessionStorage.setItem(GITHUB_OAUTH_COMPLETE_KEY, "true");
 
-    router.replace("/dashboard");
-  }, [router]);
+    // Full page navigation so AuthProvider re-bootstraps with the updated sessionStorage.
+    // Client-side router.replace would skip the bootstrap useEffect since AuthProvider is already mounted.
+    window.location.replace("/dashboard");
+  }, []);
 
   if (error) {
     return (
