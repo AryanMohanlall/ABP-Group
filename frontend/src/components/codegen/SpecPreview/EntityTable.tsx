@@ -175,7 +175,7 @@ export function EntityTable({ entities, onChange }: EntityTableProps) {
         open={fieldModalOpen}
         onOk={handleSaveField}
         onCancel={() => setFieldModalOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         {editingField && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

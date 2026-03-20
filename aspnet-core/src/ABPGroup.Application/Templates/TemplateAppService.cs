@@ -110,29 +110,28 @@ public class TemplateAppService
         return await GetListAsync(input);
     }
 
-    public async Task<TemplateDto> GetAsync(int id)
+    public override async Task<TemplateDto> GetAsync(EntityDto<int> input)
     {
-        var entity = await Repository.GetAsync(id);
+        var entity = await Repository.GetAsync(input.Id);
         var dto = MapToEntityDto(entity);
 
         if (AbpSession.UserId.HasValue)
         {
             dto.IsFavorite = await _favoriteRepository.GetAll()
-                .AnyAsync(x => x.UserId == AbpSession.UserId.Value && x.TemplateId == id);
+                .AnyAsync(x => x.UserId == AbpSession.UserId.Value && x.TemplateId == input.Id);
         }
 
         return dto;
     }
 
-    public async Task<TemplateDto> UpdateAsync(int id, CreateUpdateTemplateDto input)
+    public override async Task<TemplateDto> UpdateAsync(CreateUpdateTemplateDto input)
     {
-        input.Id = id;
         return await base.UpdateAsync(input);
     }
 
-    public async Task DeleteAsync(int id)
+    public override async Task DeleteAsync(EntityDto<int> input)
     {
-        await base.DeleteAsync(new EntityDto<int>(id));
+        await base.DeleteAsync(input);
     }
 
     public async Task ToggleFavoriteAsync(int id)

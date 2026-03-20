@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+      },
+    ],
+    dangerouslyAllowSVG: true,
+  },
 };
 
 export default nextConfig;

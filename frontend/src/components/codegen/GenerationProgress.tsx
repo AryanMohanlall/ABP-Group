@@ -26,23 +26,22 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
   const [started, setStarted] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    let mounted = true;
 
-    const controller = new AbortController();
     startGeneration(sessionId)
       .then(() => {
-        if (!controller.signal.aborted) setStarted(true);
+        if (mounted) setStarted(true);
       })
       .catch(() => {
-        if (!controller.signal.aborted)
+        if (mounted)
           setActivityLog((prev) => [...prev, "Failed to start generation."]);
       });
 
-    return () => controller.abort();
+    return () => {
+      mounted = false;
+    };
   }, [sessionId, startGeneration]);
 
   useEffect(() => {
