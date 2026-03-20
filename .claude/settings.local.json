@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(grep -E \"\\\\.\\(md|txt\\)$\")",
-      "Bash(find c:UsersNhlakaniphoDocumentsProjectsABP-Groupaspnet-coresrc -name *Auth* -o -name *auth*)"
+      "Bash(find c:UsersNhlakaniphoDocumentsProjectsABP-Groupaspnet-coresrc -name *Auth* -o -name *auth*)",
+      "Bash(npx vitest:*)",
+      "Bash(NODE_OPTIONS=\"--experimental-vm-modules\" npx vitest run --reporter=verbose)",
+      "Bash(nvm install:*)",
+      "Bash(fnm install:*)",
+      "Bash(nvm list:*)",
+      "Bash(nvm use:*)",
+      "Bash(npx next:*)",
+      "Bash(dotnet test:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

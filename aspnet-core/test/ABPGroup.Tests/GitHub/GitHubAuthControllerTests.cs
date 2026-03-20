@@ -319,7 +319,7 @@ namespace ABPGroup.Tests.GitHub
         // ── GitHubCallback — happy path ────────────────────────────────────
 
         [Fact]
-        public async Task GitHubCallback_Success_RedirectsToFrontendCallback()
+        public async Task GitHubCallback_Success_RedirectsToFrontendCallbackWithQueryParams()
         {
             const string state = "state-ok";
             _requestCookies.Setup(c => c["github_oauth_state"]).Returns(state);
@@ -350,11 +350,13 @@ namespace ABPGroup.Tests.GitHub
 
             var result = (RedirectResult)await controller.GitHubCallback("code", state);
 
-            Assert.Equal(ClientRoot + "/auth/github/callback", result.Url);
+            Assert.StartsWith(ClientRoot + "/auth/github/callback?token=", result.Url);
+            Assert.Contains("userId=5", result.Url);
+            Assert.Contains("expireInSeconds=", result.Url);
         }
 
         [Fact]
-        public async Task GitHubCallback_Success_SetsGitHubAuthResultCookie()
+        public async Task GitHubCallback_Success_DoesNotSetLegacyCookie()
         {
             const string state = "state-cookie";
             _requestCookies.Setup(c => c["github_oauth_state"]).Returns(state);
@@ -385,7 +387,7 @@ namespace ABPGroup.Tests.GitHub
                     "github_auth_result",
                     It.IsNotNull<string>(),
                     It.IsAny<CookieOptions>()),
-                Times.Once);
+                Times.Never);
         }
 
         [Fact]
