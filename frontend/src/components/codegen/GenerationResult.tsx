@@ -5,13 +5,12 @@ import {
   CheckCircle2Icon,
   XCircleIcon,
   RocketIcon,
-  GitBranchIcon,
   RefreshCwIcon,
   ArrowLeftIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
-import type { IGenerationStatus, IValidationResult } from "@/providers/codegen-provider";
+import type { IGenerationStatus } from "@/providers/codegen-provider";
 import { useStyles } from "./GenerationResult.styles";
 
 interface GenerationResultProps {
@@ -29,7 +28,7 @@ export function GenerationResult({
   onRetry,
   onBack,
 }: GenerationResultProps) {
-  const { styles, cx } = useStyles();
+  const { styles } = useStyles();
   const { isPending, session } = useCodeGenState();
   const { triggerRepair } = useCodeGenAction();
 

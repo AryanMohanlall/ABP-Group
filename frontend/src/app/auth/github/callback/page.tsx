@@ -5,16 +5,6 @@ import { useRouter } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
-const GITHUB_CONNECTED_KEY = "github_connected";
-
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function deleteCookie(name: string) {
-  document.cookie = `${name}=; Max-Age=0; path=/`;
-}
 
 function GitHubCallback() {
   const router = useRouter();

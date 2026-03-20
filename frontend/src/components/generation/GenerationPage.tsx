@@ -28,9 +28,7 @@ import {
 import { getAxiosInstance } from "@/utils/axiosInstance";
 import { ClaimDeployment } from "@/components/blocks/claim-deployment";
 
-interface GenerationPageProps {
-  onNavigate: (page: string) => void;
-}
+
 
 type StepStatus = "completed" | "active" | "pending";
 
@@ -214,7 +212,7 @@ const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 
-export function GenerationPage({ onNavigate }: GenerationPageProps) {
+export function GenerationPage() {
   const { styles, cx } = useStyles();
   const searchParams = useSearchParams();
 
@@ -419,7 +417,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       });
 
       const repository = response.data.repository;
-      const repoUrl = repository?.htmlUrl ?? "";
       const fullName = repository?.fullName ?? "";
       const ownerFromFullName = fullName.includes("/")
         ? fullName.split("/")[0]
