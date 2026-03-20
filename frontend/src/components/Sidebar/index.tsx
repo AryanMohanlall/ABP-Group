@@ -2,7 +2,7 @@
 
 import {
   FolderIcon,
-  LayoutTemplateIcon,
+  LayoutGridIcon,
   SettingsIcon,
   PlusIcon,
   ChevronDownIcon,

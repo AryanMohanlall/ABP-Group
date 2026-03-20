@@ -10,7 +10,8 @@
       "Bash(nvm list:*)",
       "Bash(nvm use:*)",
       "Bash(npx next:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
