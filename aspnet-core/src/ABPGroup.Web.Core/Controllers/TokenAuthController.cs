@@ -195,14 +195,8 @@ namespace ABPGroup.Controllers
             var identity = (ClaimsIdentity)principal.Identity;
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
-            var roleNames = identity.Claims
-                .Where(c => c.Type == ClaimTypes.Role)
-                .Select(c => c.Value)
-                .Distinct()
-                .ToArray();
-            var encodedRoleNames = Uri.EscapeDataString(string.Join(",", roleNames));
 
-            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds + "|" + encodedRoleNames, new CookieOptions
+           /*  Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,
@@ -210,12 +204,14 @@ namespace ABPGroup.Controllers
                 MaxAge = TimeSpan.FromMinutes(2)
             });
 
-            return Redirect($"{clientRoot}/auth/github/callback");
+            return Redirect($"{clientRoot}/auth/github/callback"); */
+            return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
         }
 
         private string GetGitHubOAuthConfig(string key)
         {
-            return _appConfiguration[$"GitHubOAuth:{key}"] ?? _appConfiguration[$"GitHub:{key}"];
+            var value = _appConfiguration[$"GitHubOAuth:{key}"];
+            return string.IsNullOrEmpty(value) ? _appConfiguration[$"GitHub:{key}"] : value;
         }
 
         private async Task<User> LinkGitHubToExistingUserAsync(long userId, GitHubUserInfo githubUser, string githubAccessToken)

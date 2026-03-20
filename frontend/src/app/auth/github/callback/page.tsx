@@ -18,7 +18,7 @@ function deleteCookie(name: string) {
 function GitHubCallback() {
   const router = useRouter();
 
-  useEffect(() => {
+/*   useEffect(() => {
     const raw = getCookie("github_auth_result");
 
     if (!raw) {
@@ -36,9 +36,33 @@ function GitHubCallback() {
 
     sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
 
-    // Return the user to project creation after linking GitHub.
-    window.location.replace("/create-project");
-  }, [router]);
+    router.replace("/dashboard");
+  }, [router]); */
+
+  useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const accessToken = params.get("token");
+  const userId = params.get("userId");
+  const expireInSeconds = params.get("expireInSeconds");
+
+  if (!accessToken || !userId) {
+    router.replace("/login?error=missing_token");
+    return;
+  }
+
+  setAuthToken(accessToken);
+
+  sessionStorage.setItem(
+    AUTH_USER_KEY,
+    JSON.stringify({
+      userId: Number(userId),
+      accessToken,
+      expireInSeconds: Number(expireInSeconds ?? 86400),
+    }),
+  );
+
+  router.replace("/dashboard");
+}, [router]);
 
   return (
     <div

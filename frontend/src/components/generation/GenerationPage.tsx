@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CheckIcon,
   RocketIcon,
@@ -9,17 +10,18 @@ import {
   ExternalLinkIcon,
   GithubIcon,
   RefreshCwIcon,
-  ChevronRightIcon,
-  FolderIcon,
-  FileIcon,
-  LayersIcon,
-  GitBranchIcon,
+  SearchIcon,
+  FolderPlusIcon,
+  MonitorIcon,
+  ServerIcon,
+  DatabaseIcon,
+  LoaderIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AxiosError } from "axios";
 import { useStyles } from "./styles";
 import {
-  ProjectFramework,
+  ProjectStatus,
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
@@ -30,30 +32,39 @@ interface GenerationPageProps {
   onNavigate: (page: string) => void;
 }
 
-interface CommitGeneratedDeploymentResult {
-  attempted?: boolean;
-  triggered?: boolean;
-  skippedReason?: string | null;
-  deploymentId?: string | null;
-  url?: string | null;
-  inspectorUrl?: string | null;
-  state?: string | null;
-  errorMessage?: string | null;
-}
-
-interface CommitGeneratedResponse {
-  committed?: boolean;
-  owner?: string;
-  repository?: string;
-  branch?: string;
-  commitSha?: string;
-  committedFiles?: number;
-  deployment?: CommitGeneratedDeploymentResult;
-}
-
 type StepStatus = "completed" | "active" | "pending";
 
 type StatusBadgeState = "Generating" | "Generated" | "Deploying" | "Live";
+
+// ─── Fixed 5-step pipeline definition ────────────────────────────────────────
+
+interface PipelinePhase {
+  id: number;
+  name: string;
+  description: string;
+  icon: React.ElementType;
+}
+
+const PIPELINE_PHASES: PipelinePhase[] = [
+  { id: 1, name: "Requirements Analysis", description: "AI analyzes your prompt and extracts features", icon: SearchIcon },
+  { id: 2, name: "Scaffolding",           description: "Setting up project structure from your template", icon: FolderPlusIcon },
+  { id: 3, name: "Frontend",              description: "Building UI pages and components",              icon: MonitorIcon },
+  { id: 4, name: "Backend",               description: "Generating API routes and services",            icon: ServerIcon },
+  { id: 5, name: "Database",              description: "Creating schemas, models, and migrations",      icon: DatabaseIcon },
+];
+
+const TOTAL_PHASES = PIPELINE_PHASES.length;
+
+// ─── Parse [N/5] prefix from statusMessage ───────────────────────────────────
+
+function parsePhase(msg: string | null | undefined): { phase: number; detail: string } | null {
+  if (!msg) return null;
+  const match = msg.match(/^\[(\d+)\/\d+\]\s*(.*)/);
+  if (!match) return null;
+  return { phase: parseInt(match[1], 10), detail: match[2] };
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 const StatusBadge = ({ status }: { status: StatusBadgeState }) => {
   const { styles, cx } = useStyles();
@@ -66,62 +77,130 @@ const StatusBadge = ({ status }: { status: StatusBadgeState }) => {
 
   return (
     <span className={cx(styles.statusBadge, statusClassMap[status])}>
+      {status === "Generating" && (
+        <motion.span
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          style={{ display: "inline-flex", marginRight: 6 }}
+        >
+          <LoaderIcon style={{ width: 12, height: 12 }} />
+        </motion.span>
+      )}
       {status}
     </span>
   );
 };
 
 interface PipelineStepProps {
-  name: string;
+  phase: PipelinePhase;
   status: StepStatus;
-  duration?: string;
+  detail?: string;
   isLast?: boolean;
 }
 
-const PipelineStep = ({
-  name,
-  status,
-  duration,
-  isLast,
-}: PipelineStepProps) => {
+const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
   const { styles, cx } = useStyles();
   const isCompleted = status === "completed";
   const isActive = status === "active";
+  const Icon = phase.icon;
 
   return (
     <div className={styles.stepRow}>
       <div className={styles.stepRail}>
-        <div
+        <motion.div
           className={cx(
             styles.stepDot,
             isCompleted && styles.stepDotCompleted,
-            isActive && styles.stepDotActive,
+            isActive && styles.stepDotActive
           )}
+          animate={isActive ? { scale: [1, 1.12, 1] } : {}}
+          transition={isActive ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
         >
-          {isCompleted && <CheckIcon className={styles.stepCheck} />}
-        </div>
+          {isCompleted ? (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <CheckIcon className={styles.stepCheck} />
+            </motion.div>
+          ) : (
+            <Icon className={styles.stepIcon} />
+          )}
+        </motion.div>
         {!isLast && (
           <div
             className={cx(
               styles.stepLine,
-              isCompleted && styles.stepLineCompleted,
+              isCompleted && styles.stepLineCompleted
             )}
           />
         )}
       </div>
       <div className={styles.stepContent}>
-        <span className={styles.stepTitle}>{name}</span>
-        {duration && <span className={styles.stepDuration}>{duration}</span>}
+        <div className={styles.stepTitleRow}>
+          <span className={cx(
+            styles.stepTitle,
+            isActive && styles.stepTitleActive,
+            status === "pending" && styles.stepTitlePending
+          )}>
+            {phase.name}
+          </span>
+          {isActive && (
+            <motion.span
+              className={styles.stepActiveBadge}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              In progress
+            </motion.span>
+          )}
+        </div>
+        <span className={styles.stepDescription}>{phase.description}</span>
+        <AnimatePresence>
+          {isActive && detail && (
+            <motion.span
+              className={styles.stepDetail}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              {detail}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 };
 
+// ─── Main page ───────────────────────────────────────────────────────────────
+
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
-  const { items } = useProjectState();
-  const { fetchAll } = useProjectAction();
-  const [generationStep, setGenerationStep] = useState(0);
+  const searchParams = useSearchParams();
+
+  const { selected: project } = useProjectState();
+  const { fetchById } = useProjectAction();
+
+  // Resolve project ID from state, URL param, or sessionStorage
+  const [projectId, setProjectId] = useState<number | null>(null);
+  useEffect(() => {
+    if (projectId) return;
+    const fromState = project?.id ?? null;
+    const urlParam = searchParams.get("id");
+    const fromUrl = urlParam ? parseInt(urlParam, 10) : NaN;
+    const stored = typeof window !== "undefined"
+      ? parseInt(sessionStorage.getItem("generatingProjectId") ?? "", 10)
+      : NaN;
+    const resolved = fromState
+      ?? (!Number.isNaN(fromUrl) ? fromUrl : null)
+      ?? (!Number.isNaN(stored) ? stored : null);
+    if (resolved) setProjectId(resolved);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(-1);
   const [repoName, setRepoName] = useState("promptforge-app");
@@ -129,28 +208,13 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
-  const [deployInfo, setDeployInfo] = useState<string | null>(null);
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
-  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(
-    null,
-  );
-  const [liveUrl, setLiveUrl] = useState<string | null>(null);
-  const [deploymentInspectorUrl, setDeploymentInspectorUrl] = useState<
-    string | null
-  >(null);
+  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
 
-  const generationSteps = useMemo(
-    () => [
-      { name: "Capturing AppRequest", duration: "1.6s" },
-      { name: "Starting PromptSession", duration: "3.1s" },
-      { name: "Selecting template & stack", duration: "2.2s" },
-      { name: "Generating GeneratedProject", duration: "9.4s" },
-      { name: "Packaging GeneratedArtifacts", duration: "4.5s" },
-      { name: "Preparing Repository", duration: "2.8s" },
-      { name: "Queueing BuildJob", duration: "1.9s" },
-    ],
-    [],
-  );
+  // Track the latest phase detail from statusMessage
+  const [phaseDetails, setPhaseDetails] = useState<Record<number, string>>({});
+  const [currentPhase, setCurrentPhase] = useState(0);
+  const [completedMessages, setCompletedMessages] = useState<string[]>([]);
 
   const deploymentSteps = useMemo(
     () => [
@@ -160,33 +224,100 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       { name: "Running deployment" },
       { name: "Publishing LiveUrl" },
     ],
-    [],
+    []
   );
 
+  // Poll for real project status every 3 seconds
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!projectId) return;
+    fetchById(projectId);
+    const interval = setInterval(() => {
+      fetchById(projectId);
+    }, 3000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
-  const latestProject = useMemo(() => {
-    if (!items.length) {
-      return null;
-    }
-
-    return [...items].sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    )[0];
-  }, [items]);
-
-  const projectTitle = latestProject?.name ?? "New PromptForge build";
+  const projectTitle = project?.name ?? "New PromptForge build";
   const configuredOwner = (process.env.NEXT_PUBLIC_GITHUB_OWNER ?? "").trim();
   const displayOwner = configuredOwner || "owner";
-  const isDotNetProject =
-    latestProject?.framework === ProjectFramework.DotNetBlazor;
 
-  const isGenerated = generationStep >= generationSteps.length;
+  // Derive real codegen state from backend status
+  const isCodeGenInProgress = !project ||
+    project.status === ProjectStatus.Draft ||
+    project.status === ProjectStatus.PromptSubmitted ||
+    project.status === ProjectStatus.CodeGenerationInProgress;
+  const isCodeGenFailed = project?.status === ProjectStatus.Failed;
+  const isCodeGenDone = project?.status === ProjectStatus.CodeGenerationCompleted ||
+    project?.status === ProjectStatus.RepositoryPushInProgress ||
+    project?.status === ProjectStatus.Deployed;
+
+  // Parse [N/7] prefix from statusMessage to drive pipeline steps
+  useEffect(() => {
+    if (!project?.statusMessage) return;
+    const msg = project.statusMessage.replace(/\.{2,}$/, "").trim();
+    if (!msg) return;
+
+    const parsed = parsePhase(msg);
+    if (parsed) {
+      setCurrentPhase(parsed.phase);
+      setPhaseDetails((prev) => ({
+        ...prev,
+        [parsed.phase]: parsed.detail,
+      }));
+    }
+
+    // Also track raw messages for the log
+    setCompletedMessages((prev) => {
+      if (prev.includes(msg)) return prev;
+      return [...prev, msg];
+    });
+  }, [project?.statusMessage]);
+
+  // When codegen finishes, mark all phases done
+  useEffect(() => {
+    if (isCodeGenDone) {
+      setCurrentPhase(TOTAL_PHASES + 1);
+    }
+  }, [isCodeGenDone]);
+
+  // Build step statuses
+  const pipelineSteps = useMemo(() => {
+    return PIPELINE_PHASES.map((phase) => {
+      let status: StepStatus;
+      if (isCodeGenDone || phase.id < currentPhase) {
+        status = "completed";
+      } else if (phase.id === currentPhase) {
+        status = "active";
+      } else {
+        status = "pending";
+      }
+      return {
+        ...phase,
+        status,
+        detail: phaseDetails[phase.id],
+      };
+    });
+  }, [currentPhase, phaseDetails, isCodeGenDone]);
+
+  const progressPercentage = isCodeGenDone
+    ? 100
+    : currentPhase > 0
+      ? Math.min(Math.round(((currentPhase - 1) / TOTAL_PHASES) * 100 + (1 / TOTAL_PHASES) * 50), 95)
+      : 0;
+
+  // Update default repo name once project loads
+  useEffect(() => {
+    if (project?.name && repoName === "promptforge-app") {
+      setRepoName(
+        project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "promptforge-app"
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.name]);
+
+  const isGenerated = isCodeGenDone;
   const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
-  const resolvedLiveUrl = liveUrl ?? deploymentInspectorUrl;
 
   const generationStatus: StatusBadgeState = isDeployed
     ? "Live"
@@ -196,33 +327,11 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         ? "Generated"
         : "Generating";
 
-  const progressPercentage = isGenerated
-    ? 100
-    : Math.round((generationStep / generationSteps.length) * 100);
-
   const getStepStatus = (index: number, currentStep: number): StepStatus => {
     if (index < currentStep) return "completed";
     if (index === currentStep) return "active";
     return "pending";
   };
-
-  useEffect(() => {
-    if (isGenerated) return undefined;
-    const timer = window.setTimeout(() => {
-      setGenerationStep((prev) => prev + 1);
-    }, 1700);
-
-    return () => window.clearTimeout(timer);
-  }, [generationStep, generationSteps.length, isGenerated]);
-
-  useEffect(() => {
-    if (!isDeploying || isDeployed) return undefined;
-    const timer = window.setTimeout(() => {
-      setDeploymentStep((prev) => prev + 1);
-    }, 1500);
-
-    return () => window.clearTimeout(timer);
-  }, [isDeploying, deploymentStep, isDeployed, deploymentSteps.length]);
 
   const handleDeploy = async () => {
     const sanitizedRepoName = repoName.trim();
@@ -230,21 +339,19 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       return;
     }
 
-    if (!latestProject?.id) {
+    if (!project?.id) {
       setDeployError("No generated project was found to commit.");
       return;
     }
 
     setDeployError(null);
-    setDeployInfo(null);
     setIsCreatingRepo(true);
-    setIsDeploying(false);
-    setDeploymentStep(-1);
-    setLiveUrl(null);
-    setDeploymentInspectorUrl(null);
+    setIsDeploying(true);
+    setDeploymentStep(0);
 
     try {
       const instance = getAxiosInstance();
+
       const response = await instance.post<{
         repository?: {
           name?: string;
@@ -260,64 +367,32 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       });
 
       const repository = response.data.repository;
+      const repoUrl = repository?.htmlUrl ?? "";
       const fullName = repository?.fullName ?? "";
-      const ownerFromFullName = fullName.includes("/")
-        ? fullName.split("/")[0]
-        : configuredOwner || undefined;
-      const repoFromFullName = fullName.includes("/")
-        ? fullName.split("/")[1]
-        : (repository?.name ?? sanitizedRepoName);
+      const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
+      const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
 
-      const commitResponse = await instance.post<CommitGeneratedResponse>(
-        "/api/github-app/commit-generated",
-        {
-          projectId: latestProject.id,
-          owner: ownerFromFullName,
-          repositoryName: repoFromFullName,
-          repositoryFullName: fullName || undefined,
-          branch: branchName,
-          commitMessage: `feat: initial generated project commit (${projectTitle})`,
-          autoDeploy,
-        },
-      );
+      setDeploymentStep(1);
+
+      await instance.post("/api/github-app/commit-generated", {
+        projectId: project.id,
+        owner: ownerFromFullName,
+        repositoryName: repoFromFullName,
+        repositoryFullName: fullName || undefined,
+        branch: branchName,
+        commitMessage: `feat: initial generated project commit (${projectTitle})`,
+      });
+
+      setDeploymentStep(2);
+      setDeploymentStep(deploymentSteps.length);
 
       setGithubRepoUrl(repository?.htmlUrl ?? null);
-      setGithubRepoFullName(
-        repository?.fullName ?? repository?.name ?? sanitizedRepoName,
-      );
-
-      const deployment = commitResponse.data?.deployment;
-      if (deployment?.attempted && deployment?.triggered) {
-        setLiveUrl(deployment.url ?? null);
-        setDeploymentInspectorUrl(deployment.inspectorUrl ?? null);
-        setDeployInfo(
-          deployment.state
-            ? `Vercel deployment started (${deployment.state}).`
-            : "Vercel deployment started.",
-        );
-        setIsDeploying(true);
-        setDeploymentStep(0);
-      } else {
-        if (deployment?.errorMessage) {
-          setDeployError(
-            `Repository committed, but deployment failed: ${deployment.errorMessage}`,
-          );
-        } else {
-          setDeployInfo(
-            deployment?.skippedReason ||
-              (autoDeploy
-                ? "Repository committed successfully, but deployment was not triggered."
-                : "Repository committed successfully. Automatic deploy was disabled."),
-          );
-        }
-      }
+      setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
     } catch (error) {
+      setIsDeploying(false);
+      setDeploymentStep(-1);
       const axiosError = error as AxiosError<{
-        result?: {
-          message?: string;
-          details?: string;
-          error?: string;
-        };
+        result?: { message?: string; details?: string; error?: string };
         message?: string;
         details?: string;
         error?: string;
@@ -334,7 +409,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
       setDeployError(
         backendMessage ||
-          "Repository commit/deploy failed. Verify GitHub and Vercel configuration.",
+          "Repository creation failed. Verify GitHub App credentials and installation access."
       );
     } finally {
       setIsCreatingRepo(false);
@@ -343,14 +418,14 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   return (
     <div className={styles.page}>
+      {/* ── Header with progress ───────────────────────────────────────── */}
       <div className={styles.header}>
         <div className={styles.titleRow}>
           <div>
             <p className={styles.eyebrow}>Generation workspace</p>
             <h1 className={styles.title}>{projectTitle}</h1>
             <p className={styles.subtitle}>
-              Tracking your AppRequest through PromptSession, GeneratedProject,
-              BuildJob, and Deployment.
+              Building your app step by step — sit back while we handle the heavy lifting.
             </p>
           </div>
           <StatusBadge status={generationStatus} />
@@ -362,280 +437,170 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               className={styles.progressFill}
               initial={{ width: 0 }}
               animate={{ width: `${progressPercentage}%` }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
             />
-            <div className={styles.progressShimmer} />
+            {isCodeGenInProgress && <div className={styles.progressShimmer} />}
           </div>
           <div className={styles.progressMeta}>
-            <span>Overall progress</span>
+            <span>
+              {isCodeGenDone
+                ? "All steps completed"
+                : currentPhase > 0
+                  ? `Step ${Math.min(currentPhase, TOTAL_PHASES)} of ${TOTAL_PHASES}`
+                  : "Preparing..."}
+            </span>
             <span>{progressPercentage}%</span>
           </div>
         </div>
       </div>
 
+      {/* ── Error state ────────────────────────────────────────────────── */}
+      {isCodeGenFailed && (
+        <div className={styles.card} style={{ borderColor: "var(--ant-color-error)", marginBottom: 16 }}>
+          <p style={{ color: "var(--ant-color-error)", margin: 0, fontWeight: 600 }}>
+            Code generation failed. Please go back and create a new project.
+          </p>
+        </div>
+      )}
+
+      {/* ── Main grid: Pipeline + right panel ──────────────────────────── */}
       <div className={styles.grid}>
+        {/* Left: Fixed 7-step pipeline */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
-              <h3 className={styles.cardTitle}>Generation pipeline</h3>
+              <h3 className={styles.cardTitle}>Build pipeline</h3>
               <p className={styles.cardSubtitle}>
-                From AppRequest to GeneratedProject
+                Your app is being built in {TOTAL_PHASES} steps
               </p>
             </div>
-            <div className={styles.cardBadge}>PromptSession</div>
+            <div className={styles.cardBadge}>
+              {isCodeGenDone
+                ? "Complete"
+                : currentPhase > 0
+                  ? `Phase ${currentPhase}`
+                  : "Starting"}
+            </div>
           </div>
 
           <div className={styles.stepStack}>
-            {generationSteps.map((step, index) => (
+            {pipelineSteps.map((step, index) => (
               <PipelineStep
-                key={step.name}
-                name={step.name}
-                duration={index < generationStep ? step.duration : undefined}
-                status={getStepStatus(index, generationStep)}
-                isLast={index === generationSteps.length - 1}
+                key={step.id}
+                phase={step}
+                status={step.status}
+                detail={step.detail}
+                isLast={index === pipelineSteps.length - 1}
               />
             ))}
           </div>
         </div>
 
+        {/* Right: Live activity + output review */}
         <div className={styles.panelStack}>
-          <div className={styles.codePanel}>
-            <div className={styles.codeHeader}>
-              <div className={styles.windowDots}>
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-              </div>
-              <span className={styles.codeTitle}>GeneratedProject.tsx</span>
-              <div className={styles.codeActions}>
-                <button
-                  className={cx(styles.iconButton, styles.focusRing)}
-                  title="Copy path"
-                >
-                  <CopyIcon className={styles.iconSmall} />
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.codeBody}>
-              <div className={styles.fileTree}>
-                <div className={styles.treeItem}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  src
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  generation
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  deployment
-                </div>
-                <div
-                  className={cx(styles.treeItemIndented, styles.treeItemActive)}
-                >
-                  <FileIcon className={styles.treeFile} />
-                  GeneratedProject.tsx
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <FileIcon className={styles.treeFile} />
-                  BuildJob.ts
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <FileIcon className={styles.treeFile} />
-                  LiveUrl.ts
-                </div>
-              </div>
-
-              <div className={styles.codeContent}>
-                <pre className={styles.codeBlock}>
-                  <code>
-                    <span className={styles.codeKeyword}>import</span> React,{" "}
-                    {"{"} useState {"}"}{" "}
-                    <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>&quot;react&quot;</span>
-                    ;{"\n"}
-                    <span className={styles.codeKeyword}>import</span> {"{"}{" "}
-                    BuildJob {"}"}{" "}
-                    <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>
-                      &quot;@/generation&quot;
-                    </span>
-                    ;{"\n\n"}
-                    <span className={styles.codeKeyword}>export</span>{" "}
-                    <span className={styles.codeKeyword}>function</span>{" "}
-                    <span className={styles.codeFunction}>
-                      GeneratedProject
-                    </span>
-                    () {"{"}
-                    {"\n"}
-                    {"  "}
-                    <span className={styles.codeKeyword}>const</span> [status] ={" "}
-                    <span className={styles.codeFunction}>useState</span>(
-                    <span className={styles.codeString}>
-                      &quot;InProgress&quot;
-                    </span>
-                    );
-                    {"\n\n"}
-                    {"  "}
-                    <span className={styles.codeKeyword}>return</span> (
-                    {"\n    "}&lt;
-                    <span className={styles.codeTag}>section</span>{" "}
-                    <span className={styles.codeAttr}>aria-label</span>=
-                    <span className={styles.codeString}>
-                      &quot;Generated project&quot;
-                    </span>
-                    &gt;
-                    {"\n      "}&lt;<span className={styles.codeTag}>h2</span>
-                    &gt;PromptSession summary&lt;/{" "}
-                    <span className={styles.codeTag}>h2</span>&gt;
-                    {"\n      "}&lt;
-                    <span className={styles.codeTag}>BuildJob</span>{" "}
-                    <span className={styles.codeAttr}>status</span>=
-                    <span className={styles.codeString}>
-                      &quot;{"{status}"}&quot;
-                    </span>
-                    /&gt;
-                    {"\n    "}&lt;/{" "}
-                    <span className={styles.codeTag}>section</span>&gt;
-                    {"\n  "});
-                    {"\n"}
-                    {"}"}
-                  </code>
-                </pre>
-              </div>
-            </div>
-          </div>
-
-          <details className={styles.logDetails}>
-            <summary className={cx(styles.logSummary, styles.focusRing)}>
-              Generation log
-            </summary>
-            <div className={styles.logBody}>
-              [10:42:01] AppRequest captured for tenant workspace
-              <br />
-              [10:42:03] PromptSession created + PromptSnapshot frozen
-              <br />
-              [10:42:06] Template resolved and StackSelection validated
-              <br />
-              [10:42:09] GeneratedProject scaffolding started
-              <br />
-              {generationStep > 3 && (
-                <>
-                  [10:42:16] GeneratedArtifacts packaged and stored
-                  <br />
-                </>
-              )}
-              {generationStep > 4 && (
-                <>
-                  [10:42:20] RepositoryContext received ArtifactPackageReady
-                  <br />
-                </>
-              )}
-            </div>
-          </details>
-
+          {/* Live activity card */}
           <div className={styles.card}>
             <div className={styles.cardHeader}>
               <div>
-                <h3 className={styles.cardTitle}>Output review</h3>
-                <p className={styles.cardSubtitle}>
-                  Architecture snapshot + Generated modules
-                </p>
-              </div>
-              <div className={styles.cardBadge}>GeneratedProject</div>
-            </div>
-
-            <div className={styles.reviewGrid}>
-              <div>
-                <div className={styles.reviewLabel}>Architecture snapshot</div>
-                <ul className={styles.reviewList}>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Frontend</span>
-                      <span className={styles.reviewText}>
-                        Next.js + Ant Design + antd-style
-                      </span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Backend</span>
-                      <span className={styles.reviewText}>
-                        ABP Framework services + DTO layer
-                      </span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Data</span>
-                      <span className={styles.reviewText}>
-                        Postgres + migrations scaffold
-                      </span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <div className={styles.reviewLabel}>Generated modules</div>
-                <ul className={styles.reviewList}>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>AppRequest</span>
-                      <span className={styles.reviewText}>
-                        Submission + validation
-                      </span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>BuildJob</span>
-                      <span className={styles.reviewText}>
-                        Queued build pipeline
-                      </span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Deployment</span>
-                      <span className={styles.reviewText}>
-                        LiveUrl publishing
-                      </span>
-                    </div>
-                  </li>
-                </ul>
+                <h3 className={styles.cardTitle}>Live activity</h3>
+                <p className={styles.cardSubtitle}>Real-time updates from the build</p>
               </div>
             </div>
 
-            <div className={styles.reviewFooter}>
-              <div>
-                <div className={styles.reviewLabel}>LiveUrl</div>
-                <p className={styles.liveUrlMuted}>
-                  LiveUrl is published after Deployment succeeds.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate("dashboard")}
-                className={cx(styles.secondaryButton, styles.focusRing)}
-              >
-                View history
-              </button>
+            <div className={styles.activityFeed}>
+              <AnimatePresence>
+                {completedMessages.length === 0 && isCodeGenInProgress && (
+                  <motion.div
+                    className={styles.activityItem}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <motion.span
+                      className={styles.activityDot}
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                    />
+                    <span className={styles.activityText}>
+                      Initializing generation pipeline...
+                    </span>
+                  </motion.div>
+                )}
+                {completedMessages.map((msg, i) => {
+                  const parsed = parsePhase(msg);
+                  const isLatest = i === completedMessages.length - 1 && isCodeGenInProgress;
+                  return (
+                    <motion.div
+                      key={msg}
+                      className={styles.activityItem}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 }}
+                    >
+                      {isLatest ? (
+                        <motion.span
+                          className={styles.activityDotActive}
+                          animate={{ scale: [1, 1.3, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        />
+                      ) : (
+                        <span className={styles.activityDotDone} />
+                      )}
+                      <span className={isLatest ? styles.activityTextActive : styles.activityText}>
+                        {parsed ? parsed.detail : msg}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
           </div>
+
+          {/* Output review */}
+          <AnimatePresence>
+            {isCodeGenDone && (
+              <motion.div
+                className={styles.card}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className={styles.cardHeader}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Build summary</h3>
+                    <p className={styles.cardSubtitle}>What was generated for your app</p>
+                  </div>
+                  <div className={styles.cardBadge}>Complete</div>
+                </div>
+
+                <div className={styles.summaryGrid}>
+                  <div className={styles.summaryItem}>
+                    <MonitorIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Frontend</span>
+                      <span className={styles.summaryValue}>Pages, components & routing</span>
+                    </div>
+                  </div>
+                  <div className={styles.summaryItem}>
+                    <ServerIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Backend</span>
+                      <span className={styles.summaryValue}>API routes & services</span>
+                    </div>
+                  </div>
+                  <div className={styles.summaryItem}>
+                    <DatabaseIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Database</span>
+                      <span className={styles.summaryValue}>Schema & migrations</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
+      {/* ── Deploy CTA ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isGenerated && !isDeploying && !isDeployed && (
           <motion.div
@@ -648,9 +613,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 <CheckIcon className={styles.iconMedium} />
               </div>
               <div>
-                <h2 className={styles.ctaTitle}>GeneratedProject ready</h2>
+                <h2 className={styles.ctaTitle}>Your app is ready</h2>
                 <p className={styles.ctaSubtitle}>
-                  52 files produced in 38 seconds
+                  All steps completed successfully. Deploy to GitHub to go live.
                 </p>
               </div>
             </div>
@@ -697,9 +662,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 disabled={isCreatingRepo || !repoName.trim()}
               >
                 <RocketIcon className={styles.iconSmall} />
-                {isCreatingRepo
-                  ? "Creating repository..."
-                  : "Commit and deploy"}
+                {isCreatingRepo ? "Creating repository..." : "Commit and deploy"}
               </button>
             </div>
 
@@ -707,10 +670,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <p className={styles.errorText} role="alert">
                 {deployError}
               </p>
-            )}
-
-            {deployInfo && !deployError && (
-              <p className={styles.infoText}>{deployInfo}</p>
             )}
 
             <div className={styles.checkboxRow}>
@@ -725,17 +684,11 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 Automatically deploy after commit
               </label>
             </div>
-
-            {isDotNetProject && autoDeploy && (
-              <p className={styles.infoText}>
-                This project uses .NET Blazor, so Vercel deployment will be
-                skipped after commit.
-              </p>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* ── Deployment pipeline ────────────────────────────────────────── */}
       <AnimatePresence>
         {(isDeploying || isDeployed) && (
           <motion.div
@@ -751,9 +704,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div className={styles.cardHeader}>
                 <div>
                   <h3 className={styles.cardTitle}>Deployment pipeline</h3>
-                  <p className={styles.cardSubtitle}>
-                    RepositoryContext + DeploymentContext
-                  </p>
+                  <p className={styles.cardSubtitle}>Pushing to GitHub and deploying</p>
                 </div>
                 <div className={styles.cardBadge}>BuildJob</div>
               </div>
@@ -762,7 +713,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 {deploymentSteps.map((step, index) => (
                   <PipelineStep
                     key={step.name}
-                    name={step.name}
+                    phase={{ id: index, name: step.name, description: "", icon: RocketIcon }}
                     status={getStepStatus(index, deploymentStep)}
                     isLast={index === deploymentSteps.length - 1}
                   />
@@ -773,6 +724,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         )}
       </AnimatePresence>
 
+      {/* ── Success state ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isDeployed && (
           <motion.div
@@ -787,43 +739,22 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 <CheckIcon className={styles.iconLarge} />
               </div>
 
-              <h2 className={styles.successTitle}>LiveUrl is ready</h2>
+              <h2 className={styles.successTitle}>Your app is live</h2>
 
               <div className={styles.successUrl}>
                 <span className={styles.successUrlText}>
-                  {resolvedLiveUrl ??
-                    `https://live.promptforge.app/${repoName}`}
+                  https://live.promptforge.app/{repoName}
                 </span>
                 <button
                   className={cx(styles.iconButton, styles.focusRing)}
                   title="Copy LiveUrl"
-                  disabled={!resolvedLiveUrl}
-                  onClick={() => {
-                    if (resolvedLiveUrl) {
-                      navigator.clipboard
-                        .writeText(resolvedLiveUrl)
-                        .catch(() => undefined);
-                    }
-                  }}
                 >
                   <CopyIcon className={styles.iconSmall} />
                 </button>
               </div>
 
               <div className={styles.successActions}>
-                <button
-                  className={cx(styles.successPrimary, styles.focusRing)}
-                  onClick={() => {
-                    if (resolvedLiveUrl) {
-                      window.open(
-                        resolvedLiveUrl,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                  }}
-                  disabled={!resolvedLiveUrl}
-                >
+                <button className={cx(styles.successPrimary, styles.focusRing)}>
                   <ExternalLinkIcon className={styles.iconSmall} />
                   Open live site
                 </button>
@@ -831,19 +762,13 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                   className={cx(styles.successGhost, styles.focusRing)}
                   onClick={() => {
                     if (githubRepoUrl) {
-                      window.open(
-                        githubRepoUrl,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
+                      window.open(githubRepoUrl, "_blank", "noopener,noreferrer");
                     }
                   }}
                   disabled={!githubRepoUrl}
                 >
                   <GithubIcon className={styles.iconSmall} />
-                  {githubRepoFullName
-                    ? `View ${githubRepoFullName}`
-                    : "View on GitHub"}
+                  {githubRepoFullName ? `View ${githubRepoFullName}` : "View on GitHub"}
                 </button>
                 <button className={cx(styles.successGhost, styles.focusRing)}>
                   <RefreshCwIcon className={styles.iconSmall} />

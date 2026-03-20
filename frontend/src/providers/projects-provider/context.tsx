@@ -26,6 +26,7 @@ export enum ProjectStatus {
   Draft = 1,
   PromptSubmitted = 2,
   CodeGenerationInProgress = 3,
+  CodeGenerationCompleted = 8,
   RepositoryPushInProgress = 4,
   Deployed = 5,
   Failed = 6,
@@ -45,7 +46,8 @@ export interface IProjectItem {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status: ProjectStatus;
-  lastDeploymentUrl?: string | null;
+  statusMessage?: string | null;
+  templateId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +64,7 @@ export interface IProjectCreateInput {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status?: ProjectStatus;
+  templateId?: number;
 }
 
 export interface IProjectUpdateInput extends IProjectCreateInput {
@@ -80,7 +83,7 @@ export interface IProjectStateContext {
 export interface IProjectActionContext {
   fetchAll: () => Promise<void>;
   fetchById: (id: number) => Promise<void>;
-  create: (data: IProjectCreateInput) => Promise<void>;
+  create: (data: IProjectCreateInput) => Promise<IProjectItem>;
   update: (data: IProjectUpdateInput) => Promise<void>;
   remove: (id: number) => Promise<void>;
 }
@@ -97,7 +100,7 @@ export const ProjectStateContext = createContext<IProjectStateContext>(INITIAL_S
 export const ProjectActionContext = createContext<IProjectActionContext>({
   fetchAll: async () => {},
   fetchById: async () => {},
-  create: async () => {},
+  create: async () => ({} as IProjectItem),
   update: async () => {},
   remove: async () => {},
 });

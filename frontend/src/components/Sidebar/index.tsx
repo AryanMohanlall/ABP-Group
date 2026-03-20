@@ -12,6 +12,7 @@ import {
   ServerIcon,
   ActivityIcon,
   LogOutIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
@@ -43,14 +44,14 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       .join("") || "U";
   const mainNav = [
     {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: LayoutGridIcon,
-    },
-    {
       id: "projects",
       label: "My Projects",
       icon: FolderIcon,
+    },
+    {
+      id: "generate",
+      label: "Generate",
+      icon: SparklesIcon,
     },
     {
       id: "templates",
@@ -104,7 +105,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           type="button"
-          onClick={() => onNavigate("create")}
+          onClick={() => onNavigate("generate")}
           className={cx(styles.newButton, styles.focusRing)}
         >
           <PlusIcon className={styles.newIcon} />
@@ -113,16 +114,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <nav className={styles.nav}>
           {mainNav.map((item) => {
-            const isActive =
-              currentPage === item.id ||
-              (currentPage === "create" && item.id === "projects");
+            const isActive = currentPage === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() =>
-                  onNavigate(item.id === "projects" ? "dashboard" : item.id)
-                }
+                onClick={() => onNavigate(item.id)}
                 className={cx(
                   styles.navButton,
                   styles.focusRing,
@@ -179,7 +176,10 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         )}
 
         <div className={styles.footer}>
-          <div className={styles.profileCard}>
+          <button
+            type="button"
+            className={cx(styles.profileButton, styles.focusRing)}
+          >
             <div className={styles.profileInfo}>
               <div className={styles.avatar}>{initials}</div>
               <div className={styles.profileTextBlock}>

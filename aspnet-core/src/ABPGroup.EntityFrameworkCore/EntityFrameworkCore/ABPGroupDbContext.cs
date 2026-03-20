@@ -1,6 +1,7 @@
 using Abp.Zero.EntityFrameworkCore;
 using ABPGroup.Authorization.Roles;
 using ABPGroup.Authorization.Users;
+using ABPGroup.CodeGen;
 using ABPGroup.MultiTenancy;
 using ABPGroup.Projects;
 using ABPGroup.Templates;
@@ -15,6 +16,7 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
     public DbSet<Prompt> Prompts { get; set; }
     public DbSet<Template> Templates { get; set; }
     public DbSet<UserFavoriteTemplate> UserFavoriteTemplates { get; set; }
+    public DbSet<CodeGenSession> CodeGenSessions { get; set; }
 
     public ABPGroupDbContext(DbContextOptions<ABPGroupDbContext> options)
         : base(options)
@@ -40,6 +42,21 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
                 .WithMany()
                 .HasForeignKey(x => x.PromptId)
                 .OnDelete(DeleteBehavior.SetNull);
+            b.Property(x => x.ArchitectureSummary).HasMaxLength(1000);
+            b.Property(x => x.GeneratedModules).HasMaxLength(500);
+            b.Property(x => x.StatusMessage).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<CodeGenSession>(b =>
+        {
+            b.ToTable("CodeGenSessions");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Prompt).HasMaxLength(10000);
+            b.Property(x => x.NormalizedRequirement).HasMaxLength(10000);
+            b.Property(x => x.ProjectName).HasMaxLength(128);
+            b.Property(x => x.ScaffoldTemplate).HasMaxLength(256);
+            b.Property(x => x.CurrentPhase).HasMaxLength(128);
+            b.Property(x => x.ErrorMessage).HasMaxLength(1000);
         });
 
         modelBuilder.Entity<Prompt>(b =>

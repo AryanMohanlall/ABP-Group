@@ -37,5 +37,13 @@ public class Project : Entity<long>
 
     public DateTime UpdatedAt { get; set; }
 
+    public int? TemplateId { get; set; }
+
+    public string ArchitectureSummary { get; set; }
+
+    public string GeneratedModules { get; set; }
+
+    public string StatusMessage { get; set; }
+
     public ICollection<Prompt> Prompts { get; set; }
 }
