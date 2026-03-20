@@ -366,6 +366,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       });
 
       const repository = response.data.repository;
+      const repoUrl = repository?.htmlUrl ?? "";
       const fullName = repository?.fullName ?? "";
       const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
       const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
