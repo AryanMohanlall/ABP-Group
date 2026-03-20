@@ -1,12 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const routerReplaceMock = vi.fn();
 const setAuthTokenMock = vi.hoisted(() => vi.fn());
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: routerReplaceMock }),
-}));
+const locationReplaceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/axiosInstance", () => ({
   setAuthToken: setAuthTokenMock,
@@ -18,14 +14,18 @@ function setUrlParams(params: Record<string, string>) {
   const qs = new URLSearchParams(params).toString();
   Object.defineProperty(window, "location", {
     writable: true,
-    value: { ...window.location, search: qs ? `?${qs}` : "" },
+    value: {
+      ...window.location,
+      search: qs ? `?${qs}` : "",
+      replace: locationReplaceMock,
+    },
   });
 }
 
 describe("GitHubCallbackPage", () => {
   beforeEach(() => {
-    routerReplaceMock.mockReset();
     setAuthTokenMock.mockReset();
+    locationReplaceMock.mockReset();
     sessionStorage.clear();
   });
 
@@ -43,7 +43,7 @@ describe("GitHubCallbackPage", () => {
 
     expect(sessionStorage.getItem("github_oauth_complete")).toBe("true");
 
-    expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    expect(locationReplaceMock).toHaveBeenCalledWith("/dashboard");
   });
 
   it("shows error state when token is missing", () => {
@@ -52,7 +52,7 @@ describe("GitHubCallbackPage", () => {
     render(<GitHubCallbackPage />);
 
     expect(screen.getByText(/missing or invalid OAuth parameters/i)).toBeInTheDocument();
-    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(locationReplaceMock).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("github_oauth_complete")).toBeNull();
   });
 
@@ -62,7 +62,7 @@ describe("GitHubCallbackPage", () => {
     render(<GitHubCallbackPage />);
 
     expect(screen.getByText(/missing or invalid OAuth parameters/i)).toBeInTheDocument();
-    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(locationReplaceMock).not.toHaveBeenCalled();
   });
 
   it("shows error state when all params are missing", () => {
@@ -81,6 +81,6 @@ describe("GitHubCallbackPage", () => {
 
     const stored = JSON.parse(sessionStorage.getItem("auth_user")!);
     expect(stored.expireInSeconds).toBe(86400);
-    expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    expect(locationReplaceMock).toHaveBeenCalledWith("/dashboard");
   });
 });

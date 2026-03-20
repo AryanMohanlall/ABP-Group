@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Table, Tag, Button, Input, Select, Switch, Modal, message } from "antd";
-import { PlusIcon, Trash2Icon, EditIcon } from "lucide-react";
-import type { IEntitySpec, IFieldSpec, IRelationSpec } from "@/providers/codegen-provider";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import type { IEntitySpec, IFieldSpec } from "@/providers/codegen-provider";
 
 interface EntityTableProps {
   entities: IEntitySpec[];
@@ -15,7 +15,6 @@ const FIELD_TYPES: IFieldSpec["type"][] = [
 ];
 
 export function EntityTable({ entities, onChange }: EntityTableProps) {
-  const [editingEntity, setEditingEntity] = useState<IEntitySpec | null>(null);
   const [editingField, setEditingField] = useState<IFieldSpec | null>(null);
   const [fieldModalOpen, setFieldModalOpen] = useState(false);
   const [targetEntityName, setTargetEntityName] = useState("");
@@ -90,7 +89,7 @@ export function EntityTable({ entities, onChange }: EntityTableProps) {
       title: "",
       key: "actions",
       width: 40,
-      render: (_: unknown, record: IFieldSpec, _idx: number) => (
+      render: (_: unknown, record: IFieldSpec) => (
         <Button
           type="text"
           danger

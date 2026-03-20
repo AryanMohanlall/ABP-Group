@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, Tag, Spin, message } from "antd";
-import { SparklesIcon, PlusIcon, XIcon, ArrowRightIcon } from "lucide-react";
+import { SparklesIcon, PlusIcon, ArrowRightIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import { ICodeGenSession } from "@/providers/codegen-provider";

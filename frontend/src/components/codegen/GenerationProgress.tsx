@@ -5,7 +5,6 @@ import { Spin } from "antd";
 import {
   CheckCircle2Icon,
   XCircleIcon,
-  CircleDotIcon,
   ClockIcon,
   Loader2Icon,
 } from "lucide-react";
@@ -21,12 +20,13 @@ interface GenerationProgressProps {
 
 export function GenerationProgress({ sessionId, onComplete }: GenerationProgressProps) {
   const { styles, cx } = useStyles();
-  const { isPending, generationStatus } = useCodeGenState();
+  const { generationStatus } = useCodeGenState();
   const { startGeneration, pollStatus } = useCodeGenAction();
 
   const [started, setStarted] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedRef = useRef(false);
 
   const handleStart = useCallback(async () => {
     try {
@@ -38,10 +38,10 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
   }, [sessionId, startGeneration]);
 
   useEffect(() => {
-    if (!started) {
-      handleStart();
-    }
-  }, [started, handleStart]);
+    if (startedRef.current) return;
+    startedRef.current = true;
+    handleStart();
+  }, [handleStart]);
 
   useEffect(() => {
     if (!started) return;
@@ -73,7 +73,6 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
   const totalValidations = validations.length;
   const passedCount = validations.filter((v) => v.status === "passed").length;
   const failedCount = validations.filter((v) => v.status === "failed").length;
-  const runningCount = validations.filter((v) => v.status === "running").length;
   const progressPercent = totalValidations > 0
     ? Math.round(((passedCount + failedCount) / totalValidations) * 100)
     : 0;

@@ -61,7 +61,7 @@ export default function GeneratePage() {
     setCurrentStep(2);
   };
 
-  const handleStackNext = (_stack: IStackConfig) => {
+  const handleStackNext = () => {
     setCurrentStep(3);
   };
 

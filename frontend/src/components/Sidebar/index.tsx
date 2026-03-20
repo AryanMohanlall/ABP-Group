@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  LayoutGridIcon,
   FolderIcon,
   LayoutTemplateIcon,
   SettingsIcon,
