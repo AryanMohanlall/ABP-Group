@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { StepIndicator } from "@/components/StepIndicator";
 import { CaptureStep } from "@/components/codegen/CaptureStep";
 import { StackStep, type ExtraConfig } from "@/components/codegen/StackStep";
-import { SpecPreview } from "@/components/codegen/SpecPreview";
+import { SpecReviewStep } from "@/components/codegen/SpecReviewStep";
 import { GenerationProgress } from "@/components/codegen/GenerationProgress";
 import { GenerationResult } from "@/components/codegen/GenerationResult";
 import type { ICodeGenSession, IGenerationStatus, IStackConfig } from "@/providers/codegen-provider";
@@ -137,7 +137,7 @@ export default function GeneratePage() {
       )}
 
       {currentStep === 3 && session && (
-        <SpecPreview
+        <SpecReviewStep
           sessionId={session.id}
           onConfirm={handleSpecConfirm}
           onBack={() => setCurrentStep(2)}

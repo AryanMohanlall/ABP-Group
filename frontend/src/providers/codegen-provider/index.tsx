@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useContext, useReducer, useRef } from "react";
+import { ReactNode, useCallback, useContext, useMemo, useReducer, useRef } from "react";
 import { getAxiosInstance } from "@/utils/axiosInstance";
 import { CodeGenReducer } from "./reducer";
 import {
@@ -9,6 +9,9 @@ import {
   IAppSpec,
   ICodeGenSession,
   IGenerationStatus,
+  IReadmeResult,
+  IRefinementInput,
+  IRefinementResult,
   IStackConfig,
   IStackRecommendation,
   IValidationResult,
@@ -28,6 +31,9 @@ import {
   recommendStackError,
   recommendStackPending,
   recommendStackSuccess,
+  refineSessionError,
+  refineSessionPending,
+  refineSessionSuccess,
   resetSession as resetSessionAction,
   saveSpecError,
   saveSpecPending,
@@ -60,6 +66,8 @@ export const CodeGenProvider = ({ children }: { children: ReactNode }) => {
     apiRoutes: spec?.apiRoutes ?? [],
     validations: spec?.validations ?? [],
     fileManifest: spec?.fileManifest ?? [],
+    dependencyPlan: spec?.dependencyPlan ?? { dependencies: [], devDependencies: [], envVars: {} },
+    architectureNotes: spec?.architectureNotes ?? "",
   }), []);
 
   const createSession = useCallback(async (prompt: string): Promise<ICodeGenSession> => {
@@ -218,26 +226,92 @@ export const CodeGenProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [instance]);
 
+  const refineSession = useCallback(async (
+    input: IRefinementInput
+  ): Promise<IRefinementResult> => {
+    dispatch(refineSessionPending());
+    try {
+      const res = await instance.post<AbpResult<IRefinementResult>>(
+        `${ENDPOINT}/RefineSession`,
+        input
+      );
+      const result = res.data.result;
+      dispatch(refineSessionSuccess(result));
+      return result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to refine session";
+      dispatch(refineSessionError(msg));
+      throw error;
+    }
+  }, [instance]);
+
+  const generateReadme = useCallback(async (sessionId: string): Promise<IReadmeResult> => {
+    try {
+      const res = await instance.post<AbpResult<IReadmeResult>>(
+        `${ENDPOINT}/GenerateReadme`,
+        null,
+        { params: { sessionId } }
+      );
+      return res.data.result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to generate README";
+      throw new Error(msg);
+    }
+  }, [instance]);
+
+  const confirmReadme = useCallback(async (sessionId: string): Promise<void> => {
+    try {
+      await instance.post<AbpResult<ICodeGenSession>>(
+        `${ENDPOINT}/ConfirmReadme`,
+        null,
+        { params: { sessionId } }
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to confirm README";
+      throw new Error(msg);
+    }
+  }, [instance]);
+
   const resetSessionFn = useCallback(() => {
     dispatch(resetSessionAction());
   }, []);
 
+  const actions = useMemo(
+    () => ({
+      createSession,
+      recommendStack,
+      saveStack,
+      generateSpec,
+      saveSpec,
+      confirmSpec,
+      generateReadme,
+      confirmReadme,
+      startGeneration,
+      pollStatus,
+      triggerRepair,
+      refineSession,
+      resetSession: resetSessionFn,
+    }),
+    [
+      createSession,
+      recommendStack,
+      saveStack,
+      generateSpec,
+      saveSpec,
+      confirmSpec,
+      generateReadme,
+      confirmReadme,
+      startGeneration,
+      pollStatus,
+      triggerRepair,
+      refineSession,
+      resetSessionFn,
+    ]
+  );
+
   return (
     <CodeGenStateContext.Provider value={state}>
-      <CodeGenActionContext.Provider
-        value={{
-          createSession,
-          recommendStack,
-          saveStack,
-          generateSpec,
-          saveSpec,
-          confirmSpec,
-          startGeneration,
-          pollStatus,
-          triggerRepair,
-          resetSession: resetSessionFn,
-        }}
-      >
+      <CodeGenActionContext.Provider value={actions}>
         {children}
       </CodeGenActionContext.Provider>
     </CodeGenStateContext.Provider>
@@ -266,6 +340,7 @@ export type {
   ICodeGenSession,
   ICodeGenStateContext,
   IGenerationStatus,
+  IReadmeResult,
   IStackConfig,
   IStackRecommendation,
   IValidationResult,

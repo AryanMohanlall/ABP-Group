@@ -45,7 +45,10 @@ export function GenerationResult({
       ? `All ${totalValidations} validations passed. Your app is ready to deploy.`
       : `${passedValidations} of ${totalValidations} validations passed. Your app is ready to deploy.`;
   const isSuccess = !status.error && failures.length === 0;
-  const canRepair = failures.length > 0 && failures.length <= 3 && (session?.repairAttempts ?? 0) < 2;
+  const repairAttempts = session?.repairAttempts ?? 0;
+  const maxRepairAttempts = 5;
+  const canRepair = failures.length > 0 && failures.length <= 5 && repairAttempts < maxRepairAttempts;
+  const canUseRefinement = failures.length > 0 && repairAttempts >= maxRepairAttempts;
 
   const handleRepair = async () => {
     try {
@@ -145,7 +148,18 @@ export function GenerationResult({
               disabled={isPending}
             >
               {isPending ? <Spin size="small" /> : <RefreshCwIcon size={16} />}
-              Auto-Repair ({2 - (session?.repairAttempts ?? 0)} attempts left)
+              Auto-Repair ({maxRepairAttempts - repairAttempts} attempts left)
+            </button>
+          )}
+          {canUseRefinement && (
+            <button
+              type="button"
+              className={styles.repairButton}
+              onClick={onBack}
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+            >
+              <RefreshCwIcon size={16} />
+              Use Refinement Instead
             </button>
           )}
           <button

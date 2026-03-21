@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Abp.Domain.Repositories;
 using Abp.UI;
 using ABPGroup.CodeGen.Dto;
+using ABPGroup.CodeGen.PromptTemplates;
 using ABPGroup.Projects;
 using ABPGroup.Projects.Dto;
 using ABPGroup.Templates;
@@ -36,6 +37,26 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
+
+    private const int GenerationPhaseDelayMilliseconds = 1000;
+    private const int ScaffoldBaselineFileLimit = 12;
+    private const int ScaffoldBaselineSnippetLength = 1200;
+    private const int ScaffoldBaselineTotalLength = 12000;
+
+    private sealed class RequirementsSnapshot
+    {
+        public string ArchitectureSummary { get; init; }
+        public string Features { get; init; }
+        public string Pages { get; init; }
+        public string ApiEndpoints { get; init; }
+        public string DbEntities { get; init; }
+    }
+
+    private sealed class GenerationBlueprint
+    {
+        public AppSpecDto Spec { get; init; } = new();
+        public string ReadmeMarkdown { get; init; }
+    }
 
     // 3-param and 4-param constructors for backward compat with tests
     public CodeGenAppService(
@@ -78,7 +99,10 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
     internal async Task<CodeGenResult> GenerateProjectAsync(
         CreateUpdateProjectDto input,
-        Func<string, Task> onProgress)
+        Func<string, Task> onProgress,
+        string currentDir = null,
+        AppSpecDto approvedPlan = null,
+        string approvedReadme = null)
     {
         var result = new CodeGenResult
         {
@@ -88,88 +112,285 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         };
 
         var projectName = input.Name ?? $"project-{input.Id}";
+        var outputPath = BuildOutputPath(projectName);
+        var rawApprovedPlan = approvedPlan ?? new AppSpecDto();
+        var requirements = await LoadRequirementsSnapshot(input, rawApprovedPlan, approvedReadme, onProgress);
+        var normalizedPlan = NormalizeSpec(rawApprovedPlan);
+
+        result.ArchitectureSummary = requirements.ArchitectureSummary;
+
+        await ReportProgress(onProgress, "[2/5] Setting up project scaffold...");
+        AddScaffoldFiles(result.Files, input.Framework, currentDir);
+        AddApprovedReadmeFile(result.Files, approvedReadme);
+
+        var scaffoldBaseline = BuildScaffoldBaseline(result.Files);
+        var context = BuildGenerationContext(projectName, input, requirements, approvedReadme);
+
+        var frontendResponse = await GenerateLayerAsync(
+            "[3/5] Generating frontend...",
+            "frontend pages and components",
+            "Generate the frontend code",
+            input,
+            context,
+            normalizedPlan,
+            scaffoldBaseline,
+            approvedReadme,
+            onProgress);
+        MergeLayerResponse(result, frontendResponse, true);
+
+        var backendResponse = await GenerateLayerAsync(
+            "[4/5] Generating backend...",
+            "backend API routes and server logic",
+            "Generate the backend code",
+            input,
+            context,
+            normalizedPlan,
+            scaffoldBaseline,
+            approvedReadme,
+            onProgress);
+        MergeLayerResponse(result, backendResponse, false);
+
+        var databaseResponse = await GenerateLayerAsync(
+            "[5/5] Generating database layer...",
+            "database schema and data access layer",
+            "Generate the database layer",
+            input,
+            context,
+            normalizedPlan,
+            scaffoldBaseline,
+            approvedReadme,
+            onProgress);
+        MergeLayerResponse(result, databaseResponse, false);
+
+        result.OutputPath = outputPath;
+        WriteFilesToDisk(result.Files, outputPath);
+
+        return result;
+    }
+
+    private string BuildOutputPath(string projectName)
+    {
         var outputBase = _configuration["CodeGen:OutputPath"]
             ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
-        var outputPath = Path.Combine(outputBase, projectName);
+        return Path.Combine(outputBase, projectName);
+    }
 
-        // Phase 1: Requirements analysis
+    private async Task<RequirementsSnapshot> LoadRequirementsSnapshot(
+        CreateUpdateProjectDto input,
+        AppSpecDto approvedPlan,
+        string approvedReadme,
+        Func<string, Task> onProgress)
+    {
+        if (HasUsableSpec(approvedPlan))
+        {
+            await ReportProgress(onProgress, "[1/5] Using approved README and implementation plan...");
+            return BuildRequirementsSnapshotFromPlan(approvedPlan, approvedReadme);
+        }
+
+        return await AnalyzeRequirementsAsync(input, onProgress);
+    }
+
+    private async Task<RequirementsSnapshot> AnalyzeRequirementsAsync(
+        CreateUpdateProjectDto input,
+        Func<string, Task> onProgress)
+    {
         await ReportProgress(onProgress, "[1/5] Analyzing requirements...");
         var requirementsPrompt = BuildRequirementsPrompt(input);
         var requirementsResponse = await CallGeminiAsync(
             "You are an expert software architect. Analyze the user's requirements and return a structured breakdown.",
             requirementsPrompt);
 
-        result.ArchitectureSummary = ParseDelimitedSection(requirementsResponse, "ARCHITECTURE");
-        var features = ParseDelimitedSection(requirementsResponse, "FEATURES");
-        var pages = ParseDelimitedSection(requirementsResponse, "PAGES");
-        var apiEndpoints = ParseDelimitedSection(requirementsResponse, "API_ENDPOINTS");
-        var dbEntities = ParseDelimitedSection(requirementsResponse, "DB_ENTITIES");
-
-        // Phase 2: Scaffold from template
-        await ReportProgress(onProgress, "[2/5] Setting up project scaffold...");
-        if (input.Framework == Framework.NextJS)
+        return new RequirementsSnapshot
         {
-            var templateDir = FindTemplateDirectory("next-ts-antd-prisma");
-            if (templateDir != null)
-            {
-                var scaffoldFiles = ReadScaffoldFiles(templateDir);
-                result.Files.AddRange(scaffoldFiles);
-            }
+            ArchitectureSummary = ParseDelimitedSection(requirementsResponse, "ARCHITECTURE"),
+            Features = ParseDelimitedSection(requirementsResponse, "FEATURES"),
+            Pages = ParseDelimitedSection(requirementsResponse, "PAGES"),
+            ApiEndpoints = ParseDelimitedSection(requirementsResponse, "API_ENDPOINTS"),
+            DbEntities = ParseDelimitedSection(requirementsResponse, "DB_ENTITIES")
+        };
+    }
+
+    private static RequirementsSnapshot BuildRequirementsSnapshotFromPlan(
+        AppSpecDto approvedPlan,
+        string approvedReadme)
+    {
+        var normalizedPlan = NormalizeSpec(approvedPlan ?? new AppSpecDto());
+
+        var architectureSummary = !string.IsNullOrWhiteSpace(normalizedPlan.ArchitectureNotes)
+            ? normalizedPlan.ArchitectureNotes
+            : "Use the approved README and reviewed implementation plan as the source of truth.";
+
+        if (!string.IsNullOrWhiteSpace(approvedReadme))
+        {
+            architectureSummary = architectureSummary + "\nReviewed README is approved for scaffolding.";
         }
 
-        // Build shared context for generation phases
+        return new RequirementsSnapshot
+        {
+            ArchitectureSummary = architectureSummary,
+            Features = BuildFeatureSummary(normalizedPlan),
+            Pages = string.Join(", ", normalizedPlan.Pages.Select(p => p.Route)),
+            ApiEndpoints = string.Join(", ", normalizedPlan.ApiRoutes.Select(r => $"{r.Method} {r.Path}")),
+            DbEntities = string.Join(", ", normalizedPlan.Entities.Select(BuildEntitySummary))
+        };
+    }
+
+    private static string BuildFeatureSummary(AppSpecDto approvedPlan)
+    {
+        var features = new List<string>();
+
+        if (approvedPlan.Pages.Count > 0)
+            features.Add($"{approvedPlan.Pages.Count} reviewed page flows");
+
+        if (approvedPlan.ApiRoutes.Count > 0)
+            features.Add($"{approvedPlan.ApiRoutes.Count} API endpoints");
+
+        if (approvedPlan.Entities.Count > 0)
+            features.Add($"{approvedPlan.Entities.Count} entities");
+
+        if (approvedPlan.DependencyPlan?.Dependencies?.Any(d => !d.IsExisting) == true)
+            features.Add("planned package additions");
+
+        return string.Join(", ", features);
+    }
+
+    private static string BuildEntitySummary(EntitySpecDto entity)
+    {
+        var fieldNames = string.Join(", ", entity.Fields.Select(field => field.Name));
+        return string.IsNullOrWhiteSpace(fieldNames)
+            ? entity.Name
+            : $"{entity.Name}({fieldNames})";
+    }
+
+    private void AddScaffoldFiles(List<GeneratedFile> files, Framework framework, string currentDir)
+    {
+        if (framework != Framework.NextJS)
+            return;
+
+        var templateDir = FindTemplateDirectory("next-ts-antd-prisma", currentDir);
+        if (templateDir == null)
+            return;
+
+        files.AddRange(ReadScaffoldFiles(templateDir));
+    }
+
+    private static void AddApprovedReadmeFile(List<GeneratedFile> files, string approvedReadme)
+    {
+        if (string.IsNullOrWhiteSpace(approvedReadme))
+            return;
+
+        var existingReadme = files.FirstOrDefault(file =>
+            string.Equals(NormalizeFilePath(file.Path), "readme.md", StringComparison.OrdinalIgnoreCase));
+
+        if (existingReadme != null)
+        {
+            existingReadme.Content = approvedReadme;
+            return;
+        }
+
+        files.Add(new GeneratedFile
+        {
+            Path = "README.md",
+            Content = approvedReadme
+        });
+    }
+
+    private static string BuildScaffoldBaseline(List<GeneratedFile> files)
+    {
+        if (files == null || files.Count == 0)
+            return string.Empty;
+
+        var baseline = new StringBuilder();
+
+        foreach (var file in files
+            .OrderBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
+            .Take(ScaffoldBaselineFileLimit))
+        {
+            if (baseline.Length >= ScaffoldBaselineTotalLength)
+                break;
+
+            var snippet = file.Content ?? string.Empty;
+            if (snippet.Length > ScaffoldBaselineSnippetLength)
+                snippet = snippet[..ScaffoldBaselineSnippetLength];
+
+            baseline.AppendLine($"FILE: {file.Path}");
+            baseline.AppendLine(snippet);
+            baseline.AppendLine("===END BASELINE FILE===");
+        }
+
+        return baseline.ToString();
+    }
+
+    private static StringBuilder BuildGenerationContext(
+        string projectName,
+        CreateUpdateProjectDto input,
+        RequirementsSnapshot requirements,
+        string approvedReadme)
+    {
         var context = new StringBuilder();
         context.AppendLine($"Project: {projectName}");
         context.AppendLine($"Framework: {input.Framework}");
         context.AppendLine($"Language: {input.Language}");
         context.AppendLine($"Database: {input.DatabaseOption}");
         context.AppendLine($"Auth: {(input.IncludeAuth ? "Yes" : "No")}");
-        context.AppendLine($"Features: {features}");
-        context.AppendLine($"Pages: {pages}");
-        context.AppendLine($"API Endpoints: {apiEndpoints}");
-        context.AppendLine($"DB Entities: {dbEntities}");
-        context.AppendLine($"Architecture: {result.ArchitectureSummary}");
+        context.AppendLine($"Features: {requirements.Features}");
+        context.AppendLine($"Pages: {requirements.Pages}");
+        context.AppendLine($"API Endpoints: {requirements.ApiEndpoints}");
+        context.AppendLine($"DB Entities: {requirements.DbEntities}");
+        context.AppendLine($"Architecture: {requirements.ArchitectureSummary}");
 
-        // Phase 3: Frontend generation
-        await Task.Delay(1000); // Proactive delay to avoid rate limits
-        await ReportProgress(onProgress, "[3/5] Generating frontend...");
-        var frontendResponse = await CallGeminiAsync(
-            BuildCodeGenSystemPrompt("frontend pages and components", input.Framework.ToString()),
-            $"Generate the frontend code for:\n{context}\n\nRequirements: {input.Prompt}");
-        var frontendFiles = ParseFiles(frontendResponse);
-        result.Files.AddRange(frontendFiles);
-        result.ModuleList.AddRange(ParseModules(frontendResponse));
+        if (!string.IsNullOrWhiteSpace(approvedReadme))
+        {
+            context.AppendLine("Approved README:");
+            context.AppendLine(approvedReadme);
+        }
 
-        var frontendArch = ParseDelimitedSection(frontendResponse, "ARCHITECTURE");
-        if (!string.IsNullOrEmpty(frontendArch) && string.IsNullOrEmpty(result.ArchitectureSummary))
-            result.ArchitectureSummary = frontendArch;
+        return context;
+    }
 
-        // Phase 4: Backend generation
-        await Task.Delay(1000); // Proactive delay
-        await ReportProgress(onProgress, "[4/5] Generating backend...");
-        var backendResponse = await CallGeminiAsync(
-            BuildCodeGenSystemPrompt("backend API routes and server logic", input.Framework.ToString()),
-            $"Generate the backend code for:\n{context}\n\nRequirements: {input.Prompt}");
-        var backendFiles = ParseFiles(backendResponse);
-        result.Files.AddRange(backendFiles);
-        result.ModuleList.AddRange(ParseModules(backendResponse));
+    private async Task<string> GenerateLayerAsync(
+        string progressLabel,
+        string layerDescription,
+        string userInstruction,
+        CreateUpdateProjectDto input,
+        StringBuilder context,
+        AppSpecDto approvedPlan,
+        string scaffoldBaseline,
+        string approvedReadme,
+        Func<string, Task> onProgress)
+    {
+        await Task.Delay(GenerationPhaseDelayMilliseconds);
+        await ReportProgress(onProgress, progressLabel);
 
-        // Phase 5: Database generation
-        await Task.Delay(1000); // Proactive delay
-        await ReportProgress(onProgress, "[5/5] Generating database layer...");
-        var dbResponse = await CallGeminiAsync(
-            BuildCodeGenSystemPrompt("database schema and data access layer", input.Framework.ToString()),
-            $"Generate the database layer for:\n{context}\n\nRequirements: {input.Prompt}");
-        var dbFiles = ParseFiles(dbResponse);
-        result.Files.AddRange(dbFiles);
-        result.ModuleList.AddRange(ParseModules(dbResponse));
+        return await CallGeminiAsync(
+            BuildCodeGenSystemPrompt(layerDescription, approvedPlan, input.Framework.ToString(), scaffoldBaseline, approvedReadme),
+            BuildLayerUserPrompt(userInstruction, context, input.Prompt, approvedReadme));
+    }
 
-        // Write files to disk
-        result.OutputPath = outputPath;
-        var skipBuild = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
-        WriteFilesToDisk(result.Files, outputPath);
+    private static string BuildLayerUserPrompt(
+        string userInstruction,
+        StringBuilder context,
+        string originalPrompt,
+        string approvedReadme)
+    {
+        if (string.IsNullOrWhiteSpace(approvedReadme))
+            return $"{userInstruction} for:\n{context}\n\nRequirements: {originalPrompt}";
 
-        return result;
+        return $"{userInstruction} for:\n{context}\n\nUse the approved README as the source of truth.\nOriginal user prompt: {originalPrompt}";
+    }
+
+    private static void MergeLayerResponse(CodeGenResult result, string layerResponse, bool allowArchitectureOverride)
+    {
+        var files = ParseFiles(layerResponse);
+        result.Files.AddRange(files);
+        result.ModuleList.AddRange(ParseModules(layerResponse));
+
+        if (!allowArchitectureOverride || !string.IsNullOrWhiteSpace(result.ArchitectureSummary))
+            return;
+
+        var architecture = ParseDelimitedSection(layerResponse, "ARCHITECTURE");
+        if (!string.IsNullOrWhiteSpace(architecture))
+            result.ArchitectureSummary = architecture;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -325,99 +546,16 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             string response;
             try
             {
+                // Use the planner prompt template
+                var plannerPrompt = PlannerPrompts.BuildSpecPrompt(
+                    session.NormalizedRequirement ?? session.Prompt,
+                    stack,
+                    features,
+                    entities);
+
                 response = await CallGeminiAsync(
-                    """
-                    You are an expert software architect. Generate a comprehensive application specification as a JSON object.
-                    
-                    CRITICAL: Return ONLY valid JSON wrapped in delimiters:
-                    ===SPEC_JSON===
-                    {...}
-                    ===END SPEC_JSON===
-                    
-                    The JSON must have this exact structure:
-                    {
-                      "entities": [
-                        {
-                          "name": "EntityName",
-                          "tableName": "entity_names",
-                          "fields": [
-                            {
-                              "name": "fieldName",
-                              "type": "string|int|float|boolean|datetime|enum|json",
-                              "required": true|false,
-                              "unique": true|false,
-                              "maxLength": 255,
-                              "enumValues": ["value1", "value2"],
-                              "description": "Field description"
-                            }
-                          ],
-                          "relations": [
-                            {
-                              "type": "one-to-one|one-to-many|many-to-many",
-                              "target": "TargetEntity",
-                              "foreignKey": "targetId"
-                            }
-                          ]
-                        }
-                      ],
-                      "pages": [
-                        {
-                          "route": "/path",
-                          "name": "PageName",
-                          "layout": "authenticated|public|admin",
-                          "components": ["ComponentName"],
-                          "dataRequirements": ["entity.field"],
-                          "description": "Page description"
-                        }
-                      ],
-                      "apiRoutes": [
-                        {
-                          "method": "GET|POST|PUT|PATCH|DELETE",
-                          "path": "/api/resource",
-                          "handler": "handlerName",
-                          "requestBody": {"field": "type"},
-                          "responseShape": {"field": "type"},
-                          "auth": true|false,
-                          "description": "Route description"
-                        }
-                      ],
-                      "validations": [
-                        {
-                          "id": "validation-id",
-                          "category": "file-exists|entity-schema|route-exists|build-passes|lint-passes|env-vars|test-passes|auth-guard|type-check|api-returns",
-                          "description": "Validation description",
-                          "target": "file/path",
-                          "assertion": "What must be true",
-                          "automatable": true|false,
-                          "script": "optional script"
-                        }
-                      ],
-                      "fileManifest": [
-                        {
-                          "path": "relative/path/to/file.tsx",
-                          "type": "scaffold|generated|static",
-                          "description": "File purpose"
-                        }
-                      ]
-                    }
-                    
-                    RULES:
-                    1. All field.type values MUST be one of: string, int, float, boolean, datetime, enum, json
-                    2. All apiRoute.method values MUST be one of: GET, POST, PUT, PATCH, DELETE (uppercase)
-                    3. All page.layout values MUST be one of: authenticated, public, admin
-                    4. All validation.category values MUST be one of: file-exists, entity-schema, route-exists, build-passes, lint-passes, env-vars, test-passes, auth-guard, type-check, api-returns
-                    5. All fileEntry.type values MUST be one of: scaffold, generated, static
-                    6. Generate complete, realistic entities with proper field types
-                    7. Include all CRUD API routes for each entity
-                    8. Include all necessary pages for the application
-                    9. Include validation rules for build, auth, routes, and entity schemas
-                    10. List all files that will be generated
-                    """,
-                    $"Application: {session.NormalizedRequirement}\n"
-                    + $"Features: {string.Join(", ", features)}\n"
-                    + $"Entities: {string.Join(", ", entities)}\n"
-                    + $"Stack: Framework={stack?.Framework}, Language={stack?.Language}, "
-                    + $"Styling={stack?.Styling}, Database={stack?.Database}, ORM={stack?.Orm}, Auth={stack?.Auth}");
+                    "You are an expert software architect. Generate a comprehensive application specification.",
+                    plannerPrompt);
             }
             catch (Exception ex)
             {
@@ -488,7 +626,31 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         if (!ActiveGenerations.TryAdd(sessionGuid, 0))
             return MapSessionToDto(session);
 
-        var spec = NormalizeSpec(DeserializeOrDefault<AppSpecDto>(session.SpecJson) ?? new AppSpecDto());
+        // The README review step persists both the approved README and the plan derived from it.
+        // Fall back to the legacy spec-generation path when older sessions do not have a plan yet.
+        var blueprint = LoadGenerationBlueprint(session.SpecJson);
+        var rawSpec = blueprint.Spec;
+        var approvedReadme = blueprint.ReadmeMarkdown;
+        var isValidSpec = HasUsableSpec(rawSpec);
+
+        if (!isValidSpec)
+        {
+            Logger.Info($"[CodeGen] No valid spec found for session {sessionGuid}. Auto-generating spec from requirements.");
+            try
+            {
+                await GenerateSpec(sessionId);
+                session = await LoadSession(sessionId);
+                blueprint = LoadGenerationBlueprint(session.SpecJson);
+                rawSpec = blueprint.Spec;
+                approvedReadme = blueprint.ReadmeMarkdown;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[CodeGen] Auto-spec generation failed for session {sessionGuid}: {ex.Message}. Proceeding with empty spec.");
+            }
+        }
+
+        var spec = NormalizeSpec(rawSpec ?? new AppSpecDto());
         var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
         var validationRules = spec.Validations ?? new List<ValidationRuleDto>();
         var initialValidationResults = BuildInitialValidationResults(validationRules);
@@ -521,6 +683,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         var templateRepository = _templateRepository;
         var scopeFactory = _serviceScopeFactory;
         var logger = Logger;
+        var currentDirectory = Directory.GetCurrentDirectory(); // Capture for background task
 
         logger.Info($"[CodeGen] Launching background task for session {sessionGuid}");
 
@@ -531,6 +694,13 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                 try
                 {
                     logger.Info($"[CodeGen] Background task entered for session {sessionGuid}");
+
+                    // Check if scopeFactory is available
+                    if (scopeFactory == null)
+                    {
+                        logger.Error($"[CodeGen] ServiceScopeFactory is null for session {sessionGuid}. Cannot create background scope.");
+                        throw new InvalidOperationException("ServiceScopeFactory is not available. Cannot proceed with generation.");
+                    }
 
                     // Create a fresh DI scope so the DbContext and repositories
                     // are not tied to the (now-completed) HTTP request scope.
@@ -571,12 +741,12 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                     }
 
                     logger.Info($"[CodeGen] Starting GenerateProjectAsync for session {sessionGuid}");
-                    var result = await bgService.GenerateProjectAsync(projectInput, OnProgress);
+                    var result = await bgService.GenerateProjectAsync(projectInput, OnProgress, currentDirectory, spec, approvedReadme);
                     logger.Info($"[CodeGen] GenerateProjectAsync completed for session {sessionGuid}. Files: {result?.Files?.Count ?? 0}");
 
                     var sess = await scopedSessionRepo.GetAsync(sessionGuid);
                     sess.GeneratedFilesJson = JsonSerializer.Serialize(
-                        result.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList(),
+                        (result?.Files ?? new List<GeneratedFile>()).Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList(),
                         JsonOptions);
 
                     await OnProgress("[6/6] Running validations...");
@@ -596,7 +766,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                     sess.UpdatedAt = DateTime.UtcNow;
                     await scopedSessionRepo.UpdateAsync(sess);
 
-                    var finalValidationResults = EvaluateValidationResults(validationRules, result.Files);
+                    var finalValidationResults = EvaluateValidationResults(validationRules, result?.Files ?? new List<GeneratedFile>());
                     var hasValidationFailures = finalValidationResults.Any(v => v.Status == "failed");
 
                     sess.ValidationResultsJson = JsonSerializer.Serialize(finalValidationResults, JsonOptions);
@@ -670,18 +840,13 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         session.RepairAttempts++;
 
         var currentFiles = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>();
-        var failureDescriptions = string.Join("\n", input.Failures.Select(f => $"- [{f.Id}] {f.Message}"));
 
-        var fileManifest = string.Join("\n", currentFiles.Select(f => f.Path));
+        // Use the dedicated repair prompt template
+        var repairPrompt = RepairPrompts.BuildRepairPrompt(input.Failures, currentFiles);
 
         var response = await CallGeminiAsync(
-            "You are an expert code repair agent. The generated code has validation failures. "
-            + "Fix the issues and return corrected files in delimited format:\n"
-            + "===FILE===\n<file path>\n===CONTENT===\n<corrected content>\n===END FILE===\n"
-            + "Only return files that need changes.",
-            $"Validation failures:\n{failureDescriptions}\n\n"
-            + $"Current files:\n{fileManifest}\n\n"
-            + $"File contents:\n{string.Join("\n---\n", currentFiles.Select(f => $"### {f.Path}\n{f.Content}"))}");
+            "You are an expert code repair agent. The generated code has validation failures.",
+            repairPrompt);
 
         var repairedFiles = ParseFiles(response);
         foreach (var repaired in repairedFiles)
@@ -697,6 +862,307 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         session.UpdatedAt = DateTime.UtcNow;
         await SaveSession(session);
         return MapSessionToDto(session);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Refinement/diff-based updates
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public async Task<RefinementResultDto> RefineSession(RefinementInputDto input)
+    {
+        var session = await LoadSession(input.SessionId);
+        if (session.Status < (int)CodeGenStatus.ValidationPassed)
+            throw new UserFriendlyException("Session must have completed generation before refinement.");
+
+        var currentFileDtos = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>();
+        var spec = LoadStoredSpec(session.SpecJson);
+
+        // Build refinement prompt
+        var prompt = RefinementPrompts.BuildDiffPrompt(
+            input.ChangeRequest,
+            spec,
+            currentFileDtos,
+            input.AffectedFiles);
+
+        string response;
+        try
+        {
+            response = await CallGeminiAsync(
+                "You are an expert code refactoring agent specializing in targeted, minimal changes.",
+                prompt);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("RefineSession: AI service call failed", ex);
+            throw new UserFriendlyException($"AI service call failed: {ex.Message}");
+        }
+
+        // Parse summary
+        var summary = ParseDelimitedSection(response, "SUMMARY")?.Trim() ?? "Refinement applied.";
+
+        // Parse changed files (returns List<GeneratedFile>)
+        var changedFiles = ParseFiles(response);
+        var changedFileDtos = ConvertToFileDtos(changedFiles);
+
+        // Parse deleted files
+        var deletedFiles = new List<string>();
+        var deletedSection = ParseDelimitedSection(response, "DELETED");
+        if (!string.IsNullOrEmpty(deletedSection))
+        {
+            deletedFiles = ParseCsvList(deletedSection);
+        }
+
+        // Merge changes into current files
+        var mergedFiles = MergeRefinementResults(currentFileDtos, changedFileDtos, deletedFiles);
+
+        // Update session
+        session.GeneratedFilesJson = JsonSerializer.Serialize(mergedFiles, JsonOptions);
+
+        // Track refinement history
+        var history = DeserializeOrDefault<List<RefinementHistoryEntry>>(session.RefinementHistoryJson) ?? new List<RefinementHistoryEntry>();
+        history.Add(new RefinementHistoryEntry
+        {
+            Timestamp = DateTime.UtcNow,
+            ChangeRequest = input.ChangeRequest,
+            ChangedFiles = changedFileDtos.Select(f => f.Path).ToList(),
+            DeletedFiles = deletedFiles
+        });
+        session.RefinementHistoryJson = JsonSerializer.Serialize(history, JsonOptions);
+        session.GenerationMode = "refinement";
+        session.UpdatedAt = DateTime.UtcNow;
+
+        await SaveSession(session);
+
+        // Run validation on impacted areas
+        var specValidations = spec.Validations ?? new List<ValidationRuleDto>();
+        var mergedFilesForValidation = ConvertToFiles(mergedFiles);
+        var validationResults = EvaluateValidationResults(specValidations, mergedFilesForValidation);
+
+        return new RefinementResultDto
+        {
+            ChangedFiles = changedFileDtos,
+            DeletedFiles = deletedFiles,
+            Summary = summary,
+            ValidationResults = validationResults
+        };
+    }
+
+    private static List<GeneratedFileDto> MergeRefinementResults(
+        List<GeneratedFileDto> original,
+        List<GeneratedFileDto> changed,
+        List<string> deleted)
+    {
+        var result = new List<GeneratedFileDto>(original);
+
+        // Apply deletions
+        foreach (var deletedPath in deleted)
+        {
+            result.RemoveAll(f => string.Equals(f.Path, deletedPath, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Apply changes
+        foreach (var changedFile in changed)
+        {
+            var existing = result.FirstOrDefault(f => string.Equals(f.Path, changedFile.Path, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Content = changedFile.Content;
+            }
+            else
+            {
+                result.Add(changedFile);
+            }
+        }
+
+        return result;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // README generation for spec review phase
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates a human-readable README document for user review before code generation.
+    /// </summary>
+    public async Task<ReadmeResultDto> GenerateReadme(string sessionId)
+    {
+        try
+        {
+            Logger.Debug($"GenerateReadme: Loading session {sessionId}");
+            var session = await LoadSession(sessionId);
+            var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+            var features = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>();
+            var entities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>();
+            EnsureReadmeGenerationPreconditions(session);
+
+            var readmeResult = await BuildReadmeResultAsync(session, stack, features, entities);
+
+            session.SpecJson = JsonSerializer.Serialize(readmeResult, JsonOptions);
+            session.Status = (int)CodeGenStatus.SpecGenerated;
+            session.UpdatedAt = DateTime.UtcNow;
+
+            await SaveSession(session);
+            return readmeResult;
+        }
+        catch (UserFriendlyException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"GenerateReadme: Unexpected error for session {sessionId}", ex);
+            throw new UserFriendlyException($"An unexpected error occurred during README generation: {ex.Message}");
+        }
+    }
+
+    private static void EnsureReadmeGenerationPreconditions(CodeGenSession session)
+    {
+        if (session.Status < (int)CodeGenStatus.StackConfirmed)
+            throw new UserFriendlyException("Stack must be confirmed before generating README.");
+    }
+
+    private async Task<ReadmeResultDto> BuildReadmeResultAsync(
+        CodeGenSession session,
+        StackConfigDto stack,
+        List<string> features,
+        List<string> entities)
+    {
+        Logger.Debug($"GenerateReadme: Calling LLM for session {session.Id}");
+        var response = await GenerateReadmeDocumentAsync(session, stack, features, entities);
+
+        var readmeMarkdown = ParseDelimitedSection(response, "README")?.Trim()
+            ?? "# Generated Application\n\nREADME generation failed.";
+        var summary = ParseDelimitedSection(response, "SUMMARY")?.Trim() ?? "A new application.";
+        var plan = await GeneratePlanFromReadmeAsync(readmeMarkdown, stack, session.Id.ToString());
+
+        return new ReadmeResultDto
+        {
+            ReadmeMarkdown = readmeMarkdown,
+            Summary = summary,
+            Plan = plan
+        };
+    }
+
+    private async Task<string> GenerateReadmeDocumentAsync(
+        CodeGenSession session,
+        StackConfigDto stack,
+        List<string> features,
+        List<string> entities)
+    {
+        try
+        {
+            return await CallGeminiAsync(
+                "You are an expert technical writer specializing in developer documentation.",
+                BuildReadmePrompt(session, stack, features, entities));
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("GenerateReadme: LLM API call failed", ex);
+            throw new UserFriendlyException($"AI service call failed: {ex.Message}");
+        }
+    }
+
+    private async Task<AppSpecDto> GeneratePlanFromReadmeAsync(
+        string readmeMarkdown,
+        StackConfigDto stack,
+        string sessionId)
+    {
+        try
+        {
+            Logger.Debug($"GenerateReadme: Deriving implementation plan from README for session {sessionId}");
+            var response = await CallGeminiAsync(
+                "You are an expert software architect. Convert the approved README into a concrete implementation plan.",
+                PlannerPrompts.BuildPlanFromReadmePrompt(readmeMarkdown, stack));
+
+            var specJson = ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
+            var plan = ParseSpecOrDefault(specJson, out var parseWarning);
+            if (!string.IsNullOrWhiteSpace(parseWarning))
+                Logger.Warn(parseWarning);
+
+            return NormalizeSpec(plan);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"GenerateReadme: Failed to derive implementation plan for session {sessionId}", ex);
+            throw new UserFriendlyException($"Failed to derive an implementation plan from the README: {ex.Message}");
+        }
+    }
+
+    private static string BuildReadmePrompt(
+        CodeGenSession session,
+        StackConfigDto stack,
+        List<string> features,
+        List<string> entities)
+    {
+        return $@"You are an expert technical writer. Generate a comprehensive, human-readable README.md document for a new application.
+
+The README should be written in markdown format and include:
+1. Project title and description
+2. Features list
+3. Tech stack with reasoning
+4. Data model / entities
+5. API endpoints overview
+6. Pages and navigation
+7. Getting started guide
+8. Environment variables needed
+9. Project structure overview
+
+Application Details:
+- Name: {session.ProjectName}
+- Description: {session.NormalizedRequirement ?? session.Prompt}
+- Features: {string.Join(", ", features)}
+- Data Entities: {string.Join(", ", entities)}
+- Framework: {stack?.Framework ?? "Next.js"}
+- Language: {stack?.Language ?? "TypeScript"}
+- Styling: {stack?.Styling ?? "Tailwind CSS"}
+- Database: {stack?.Database ?? "PostgreSQL"}
+- ORM: {stack?.Orm ?? "Prisma"}
+- Authentication: {stack?.Auth ?? "NextAuth.js"}
+
+Return your response in the following format:
+===README===
+<full markdown content>
+===END README===
+
+===SUMMARY===
+<one paragraph summary of what will be built>
+===END SUMMARY===";
+    }
+
+    /// <summary>
+    /// Confirms the README/spec and proceeds to generation phase.
+    /// </summary>
+    public async Task<CodeGenSessionDto> ConfirmReadme(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+        var readmePackage = LoadStoredReadmePackage(session.SpecJson);
+
+        if (string.IsNullOrWhiteSpace(readmePackage?.ReadmeMarkdown) || !HasUsableSpec(readmePackage.Plan))
+            throw new UserFriendlyException("Generate the reviewed README and implementation plan before continuing.");
+
+        session.SpecConfirmedAt = DateTime.UtcNow;
+        session.Status = (int)CodeGenStatus.SpecConfirmed;
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    private class RefinementHistoryEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string ChangeRequest { get; set; }
+        public List<string> ChangedFiles { get; set; } = new();
+        public List<string> DeletedFiles { get; set; } = new();
+    }
+
+    private static List<GeneratedFileDto> ConvertToFileDtos(List<GeneratedFile> files)
+    {
+        return files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList();
+    }
+
+    private static List<GeneratedFile> ConvertToFiles(List<GeneratedFileDto> fileDtos)
+    {
+        return fileDtos.Select(f => new GeneratedFile { Path = f.Path, Content = f.Content }).ToList();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1523,10 +1989,10 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     // Scaffold & file helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private string FindTemplateDirectory(string templateSlug)
+    private string FindTemplateDirectory(string templateSlug, string currentDir = null)
     {
         // Walk up from the current directory and base directory to find the frontend/templates folder
-        var roots = new[] { Directory.GetCurrentDirectory(), AppDomain.CurrentDomain.BaseDirectory };
+        var roots = new[] { currentDir ?? Directory.GetCurrentDirectory(), AppDomain.CurrentDomain.BaseDirectory };
         foreach (var root in roots)
         {
             var dir = root;
@@ -1602,69 +2068,19 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             + "===DB_ENTITIES===\n<list of database entities with fields>\n===END DB_ENTITIES===\n";
     }
 
-    private static string BuildCodeGenSystemPrompt(string layerDescription, string framework)
+    private static string BuildCodeGenSystemPrompt(
+        string layerDescription,
+        AppSpecDto approvedPlan,
+        string framework,
+        string scaffoldBaseline = null,
+        string approvedReadme = null)
     {
-        return $"""
-            You are a principal full-stack engineer generating COMPLETE, RUNNABLE, PRODUCTION-SAFE {layerDescription} for a {framework} application.
-
-            Your output will be parsed automatically. You MUST follow the exact response format.
-
-            NON-NEGOTIABLE RULES
-            1. Generate real, working code only. No TODOs, placeholders, pseudo-code, mock implementations, or omitted sections.
-            2. Every import must resolve. Every referenced file, route, schema, API, env var, component, and utility must either already exist in the provided context or be created in your output.
-            3. The result must compile and run inside the provided scaffold/template. Do not invent a different architecture than the scaffold supports.
-            4. Use the latest stable dependency versions COMPATIBLE with the chosen framework and scaffold.
-            5. If the scaffold already includes a package.json, tsconfig, prisma schema, layout, theme, or config files, treat those versions and conventions as the baseline source of truth. Only add or update packages when required for the requested feature set.
-            6. Prefer current, non-deprecated APIs for the selected stack. Avoid legacy patterns.
-            7. If auth is required, wire the full flow end-to-end: session/token handling, protected routes, login state, and server/client boundaries.
-            8. If database access is required, ensure schema, data access, and API usage are consistent with each other.
-            9. If an API route is created, the frontend must call the correct path and shape. If the frontend calls a route, that route must exist.
-            10. If environment variables are required, include the relevant .env.example or config placeholders in generated files.
-            11. Do not break the scaffold's build system, linting assumptions, routing conventions, or framework version compatibility.
-            12. Optimize for a WORKING APPLICATION over cleverness.
-
-            QUALITY BAR
-            - Complete file contents, not partial snippets
-            - Type-safe code
-            - Correct imports and exports
-            - Loading, empty, success, and error states where relevant
-            - Minimal but real validation
-            - Accessible and responsive UI
-            - Sensible defaults
-            - No dead code
-            - No duplicated logic when a utility/component can be shared
-
-            DEPENDENCY POLICY
-            - Prefer the scaffold's existing dependencies first.
-            - Add the fewest extra packages necessary.
-            - When adding packages, choose current stable versions compatible with the scaffold.
-            - If a dependency change is required, also output the necessary package/config file changes.
-
-            RETURN FORMAT
-            ===ARCHITECTURE===
-            <brief description of this layer and how it fits the app>
-            ===END ARCHITECTURE===
-
-            ===MODULES===
-            <comma-separated module names>
-            ===END MODULES===
-
-            Then for EACH file:
-
-            ===FILE===
-            <file path relative to project root>
-            ===CONTENT===
-            <full file content>
-            ===END FILE===
-
-            FINAL SELF-CHECK BEFORE ANSWERING
-            - Would this compile?
-            - Would imports resolve?
-            - Would routes and APIs line up?
-            - Would the app run without placeholder code?
-            - Did I keep dependency choices compatible with the scaffold?
-            If any answer is no, fix it before returning.
-            """;
+        return GeneratorPrompts.BuildLayerPrompt(
+            layerDescription,
+            approvedPlan,
+            new StackConfigDto { Framework = framework },
+            scaffoldBaseline,
+            approvedReadme);
     }
 
     private static string BuildValidationConstraints(List<ValidationRuleDto> validations)
@@ -2028,6 +2444,46 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     // Mapping helpers
     // ──────────────────────────────────────────────────────────────────────────
 
+    private static GenerationBlueprint LoadGenerationBlueprint(string json)
+    {
+        var readmePackage = LoadStoredReadmePackage(json);
+        if (readmePackage != null)
+        {
+            return new GenerationBlueprint
+            {
+                Spec = readmePackage.Plan ?? new AppSpecDto(),
+                ReadmeMarkdown = readmePackage.ReadmeMarkdown
+            };
+        }
+
+        return new GenerationBlueprint
+        {
+            Spec = DeserializeOrDefault<AppSpecDto>(json) ?? new AppSpecDto(),
+            ReadmeMarkdown = null
+        };
+    }
+
+    private static ReadmeResultDto LoadStoredReadmePackage(string json)
+    {
+        var readmePackage = DeserializeOrDefault<ReadmeResultDto>(json);
+        return string.IsNullOrWhiteSpace(readmePackage?.ReadmeMarkdown) ? null : readmePackage;
+    }
+
+    private static AppSpecDto LoadStoredSpec(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        return NormalizeSpec(LoadGenerationBlueprint(json).Spec ?? new AppSpecDto());
+    }
+
+    private static bool HasUsableSpec(AppSpecDto spec)
+    {
+        return spec?.Entities?.Count > 0
+            || spec?.ApiRoutes?.Count > 0
+            || spec?.Pages?.Count > 0;
+    }
+
     private CodeGenSessionDto MapSessionToDto(CodeGenSession session)
     {
         return new CodeGenSessionDto
@@ -2041,7 +2497,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             DetectedFeatures = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>(),
             DetectedEntities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>(),
             ConfirmedStack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson),
-            Spec = DeserializeOrDefault<AppSpecDto>(session.SpecJson),
+            Spec = LoadStoredSpec(session.SpecJson),
             SpecConfirmedAt = session.SpecConfirmedAt,
             GenerationStartedAt = session.GenerationStartedAt,
             GenerationCompletedAt = session.GenerationCompletedAt,

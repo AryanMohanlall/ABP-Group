@@ -28,4 +28,8 @@ public class CodeGenSession : Entity<Guid>
     public bool IsPublic { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // NEW: Generation mode tracking
+    public string GenerationMode { get; set; } // "full" | "refinement" | "repair"
+    public string RefinementHistoryJson { get; set; } // JSON array of past refinements
 }

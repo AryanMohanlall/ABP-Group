@@ -9,6 +9,17 @@ export const useStyles = createStyles(({ token, css }) => ({
     text-align: center;
     margin-bottom: ${token.marginXL * 1.5}px;
   `,
+  headerIcon: css`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: ${token.borderRadiusLG * 2}px;
+    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, ${token.colorBgContainer} 100%);
+    color: ${token.colorPrimary};
+    margin-bottom: ${token.marginLG}px;
+  `,
   title: css`
     font-size: ${token.fontSizeXL * 1.4}px;
     font-weight: ${token.fontWeightStrong};
@@ -34,56 +45,56 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorTextSecondary};
     font-size: ${token.fontSizeLG}px;
   `,
-  sectionStack: css`
-    display: flex;
-    flex-direction: column;
-    gap: ${token.marginLG}px;
+  summaryCard: css`
+    background: ${token.colorBgContainer};
+    border: 1px solid ${token.colorBorder};
+    border-radius: ${token.borderRadiusLG * 2}px;
+    padding: ${token.paddingLG}px ${token.paddingXL}px;
+    margin-bottom: ${token.marginLG}px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   `,
-  sectionCard: css`
+  summaryTitle: css`
+    font-size: ${token.fontSizeLG}px;
+    font-weight: ${token.fontWeightStrong};
+    color: ${token.colorText};
+    margin: 0 0 ${token.marginSM}px;
+  `,
+  summaryText: css`
+    color: ${token.colorTextSecondary};
+    line-height: 1.7;
+    margin: 0;
+  `,
+  readmeCard: css`
     background: ${token.colorBgContainer};
     border: 1px solid ${token.colorBorder};
     border-radius: ${token.borderRadiusLG * 2}px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    transition: box-shadow 0.3s ease;
-
-    &:hover {
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-    }
+    margin-bottom: ${token.marginLG}px;
   `,
-  sectionHeader: css`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-    border-bottom: 1px solid ${token.colorBorder};
-    cursor: pointer;
-    transition: background 0.2s ease;
-
-    &:hover {
-      background: ${token.colorFillQuaternary};
-    }
-  `,
-  sectionTitle: css`
+  readmeHeader: css`
     display: flex;
     align-items: center;
     gap: ${token.marginSM}px;
-    font-size: ${token.fontSizeLG}px;
+    padding: ${token.paddingLG}px ${token.paddingXL}px;
+    border-bottom: 1px solid ${token.colorBorder};
+    background: ${token.colorFillQuaternary};
     font-weight: ${token.fontWeightStrong};
     color: ${token.colorText};
-    letter-spacing: -0.01em;
   `,
-  sectionBadge: css`
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorPrimary};
-    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, rgba(255, 255, 255, 0.8) 100%);
-    padding: 4px 12px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid ${token.colorPrimaryBorder};
+  readmeContent: css`
+    padding: ${token.paddingXL}px;
+    max-height: 600px;
+    overflow-y: auto;
   `,
-  sectionBody: css`
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
+  readmePre: css`
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: ${token.fontFamilyCode};
+    font-size: ${token.fontSize}px;
+    line-height: 1.7;
+    color: ${token.colorText};
+    margin: 0;
   `,
   actionRow: css`
     display: flex;
@@ -94,6 +105,9 @@ export const useStyles = createStyles(({ token, css }) => ({
     border-top: 1px solid ${token.colorBorder};
   `,
   backButton: css`
+    display: inline-flex;
+    align-items: center;
+    gap: ${token.marginSM}px;
     padding: ${token.paddingSM}px 0;
     font-weight: ${token.fontWeightStrong};
     color: ${token.colorTextSecondary};
@@ -136,18 +150,5 @@ export const useStyles = createStyles(({ token, css }) => ({
       opacity: 0.5;
       cursor: not-allowed;
     }
-  `,
-  chevron: css`
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
-    color: ${token.colorTextSecondary};
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  `,
-  chevronOpen: css`
-    transform: rotate(180deg);
-  `,
-  iconSmall: css`
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
   `,
 }));

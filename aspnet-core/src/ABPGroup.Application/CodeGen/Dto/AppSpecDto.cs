@@ -9,6 +9,10 @@ public class AppSpecDto
     public List<ApiRouteSpecDto> ApiRoutes { get; set; } = new();
     public List<ValidationRuleDto> Validations { get; set; } = new();
     public List<FileEntryDto> FileManifest { get; set; } = new();
+
+    // NEW: Enhanced spec fields
+    public DependencyPlanDto DependencyPlan { get; set; } = new();
+    public string ArchitectureNotes { get; set; } // high-level architecture description
 }
 
 public class EntitySpecDto
