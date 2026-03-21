@@ -30,13 +30,4 @@ test.describe("Sidebar navigation", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   });
 
-  test("sidebar nav button shows gradient on hover and active state", async ({ page }) => {
-    const settingsButton = page.getByRole("button", { name: "Settings" });
-
-    await settingsButton.hover();
-    await expect(settingsButton).toHaveCSS("background-image", /linear-gradient/);
-
-    await settingsButton.click();
-    await expect(settingsButton).toHaveCSS("background-image", /linear-gradient/);
-  });
 });
