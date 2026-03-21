@@ -9,6 +9,7 @@ using ABPGroup.Authorization;
 using ABPGroup.Authorization.Users;
 using ABPGroup.Templates.Dto;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -107,22 +108,31 @@ public class TemplateAppService
 
     public async Task ToggleFavoriteAsync(int id)
     {
-        var userId = AbpSession.GetUserId();
-        var favorite = await _favoriteRepository.GetAll()
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.TemplateId == id);
+        try
+        {
+            var userId = AbpSession.GetUserId();
+            Logger.Error("WE ARE IN TOGGLE FAVORITE, USER ID: " + userId + ", TEMPLATE ID: " + id);
+            var favorite = await _favoriteRepository.GetAll()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.TemplateId == id);
 
-        if (favorite == null)
-        {
-            await _favoriteRepository.InsertAsync(new UserFavoriteTemplate
+            if (favorite == null)
             {
-                UserId = userId,
-                TemplateId = id,
-                TenantId = AbpSession.TenantId
-            });
+                await _favoriteRepository.InsertAsync(new UserFavoriteTemplate
+                {
+                    UserId = userId,
+                    TemplateId = id,
+                    TenantId = AbpSession.TenantId
+                });
+            }
+            else
+            {
+                await _favoriteRepository.DeleteAsync(favorite);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await _favoriteRepository.DeleteAsync(favorite);
+            Logger.Error("Error toggling favorite for user " + AbpSession.GetUserId() + " and template " + id, ex);
+            throw;
         }
     }
 
