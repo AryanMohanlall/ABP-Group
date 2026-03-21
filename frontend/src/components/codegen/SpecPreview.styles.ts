@@ -1,138 +1,191 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   container: css`
-    max-width: ${token.paddingXL * 32}px;
-    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
-  header: css`
-    text-align: center;
-    margin-bottom: ${token.marginXL}px;
-  `,
-  title: css`
-    font-size: ${token.fontSizeXL * 1.2}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
-  `,
-  subtitle: css`
-    color: ${token.colorTextSecondary};
-    margin: 0;
-    line-height: 1.6;
-  `,
+
+  // ── Loading / error state ──────────────────────────────────────────────────
   loadingWrap: css`
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: ${token.paddingXL * 3}px;
-    gap: ${token.marginLG}px;
+    gap: 16px;
+    padding: 80px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(12, 18, 28, 0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
   `,
+
   loadingText: css`
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSize}px;
+    font-size: 14px;
+    color: #8b95a2;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-align: center;
   `,
+
+  // ── Page header ────────────────────────────────────────────────────────────
+  header: css`
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  `,
+
+  title: css`
+    font-size: 22px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  `,
+
+  subtitle: css`
+    font-size: 14px;
+    color: #8b95a2;
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  `,
+
+  // ── Accordion sections ─────────────────────────────────────────────────────
   sectionStack: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginLG}px;
+    gap: 12px;
   `,
+
   sectionCard: css`
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 1.5}px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(12, 18, 28, 0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
     overflow: hidden;
+    box-shadow: 0 0 80px rgba(45, 212, 168, 0.03);
+    transition: border-color 0.2s ease;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
   `,
+
   sectionHeader: css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-    border-bottom: 1px solid ${token.colorBorder};
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(45, 212, 168, 0.08), rgba(32, 196, 154, 0.08));
     cursor: pointer;
-    transition: background 0.2s ease;
+    user-select: none;
 
     &:hover {
-      background: ${token.colorFillQuaternary};
+      background: linear-gradient(135deg, rgba(45, 212, 168, 0.13), rgba(32, 196, 154, 0.13));
     }
   `,
+
   sectionTitle: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
-  sectionBadge: css`
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorPrimary};
-    background: ${token.colorPrimaryBg};
-    padding: 2px 10px;
-    border-radius: ${token.borderRadiusLG}px;
-  `,
-  sectionBody: css`
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-  `,
-  actionRow: css`
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: ${token.marginXL}px;
-    padding-top: ${token.paddingLG}px;
-    border-top: 1px solid ${token.colorBorder};
-  `,
-  backButton: css`
-    padding: ${token.paddingSM}px 0;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorTextSecondary};
-    background: transparent;
-    border: none;
-    cursor: pointer;
 
-    &:hover {
-      color: ${token.colorText};
-    }
-  `,
-  confirmButton: css`
+  sectionBadge: css`
     display: inline-flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM * 1.5}px ${token.paddingXL}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: none;
-    background: ${token.colorPrimary};
-    color: ${token.colorBgContainer};
-    font-weight: ${token.fontWeightStrong};
-    font-size: ${token.fontSize}px;
-    cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease;
-
-    &:hover:not(:disabled) {
-      filter: brightness(1.05);
-    }
-
-    &:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 99px;
+    background: rgba(45, 212, 168, 0.15);
+    color: #2dd4a8;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   chevron: css`
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
-    color: ${token.colorTextSecondary};
-    transition: transform 0.2s ease;
+    color: #8b95a2;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
   `,
+
   chevronOpen: css`
     transform: rotate(180deg);
   `,
+
+  sectionBody: css`
+    padding: 16px 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  `,
+
+  // ── Footer action row ──────────────────────────────────────────────────────
+  actionRow: css`
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+  `,
+
+  backButton: css`
+    padding: 10px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(12, 18, 28, 0.7);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+
+    &:hover {
+      background: rgba(20, 30, 42, 0.8);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+  `,
+
+  confirmButton: css`
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border: none;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    letter-spacing: -0.2px;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(45, 212, 168, 0.35);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  `,
+
   iconSmall: css`
-    width: ${token.fontSize}px;
-    height: ${token.fontSize}px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   `,
 }));

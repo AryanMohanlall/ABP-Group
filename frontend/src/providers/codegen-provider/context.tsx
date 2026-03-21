@@ -18,6 +18,12 @@ export enum CodeGenStatus {
   Deployed = 11,
 }
 
+export enum GenerationMode {
+  Full = 1,
+  Refinement = 2,
+  Repair = 3,
+}
+
 // ─── Stack Types ─────────────────────────────────────────────────────────────
 
 export interface IStackConfig {
@@ -101,12 +107,44 @@ export interface IFileEntry {
   description: string;
 }
 
+// ─── Dependency Plan Types ───────────────────────────────────────────────────
+
+export interface IDependencyItem {
+  name: string;
+  version: string;
+  purpose: string;
+  isExisting: boolean;
+}
+
+export interface IDependencyPlan {
+  dependencies: IDependencyItem[];
+  devDependencies: IDependencyItem[];
+  envVars: Record<string, string>;
+}
+
 export interface IAppSpec {
   entities: IEntitySpec[];
   pages: IPageSpec[];
   apiRoutes: IApiRouteSpec[];
   validations: IValidationRule[];
   fileManifest: IFileEntry[];
+  dependencyPlan: IDependencyPlan;
+  architectureNotes: string;
+}
+
+// ─── Refinement Types ────────────────────────────────────────────────────────
+
+export interface IRefinementInput {
+  sessionId: string;
+  changeRequest: string;
+  affectedFiles: string[];
+}
+
+export interface IRefinementResult {
+  changedFiles: IGeneratedFile[];
+  deletedFiles: string[];
+  summary: string;
+  validationResults: IValidationResult[];
 }
 
 // ─── Session ─────────────────────────────────────────────────────────────────
@@ -141,6 +179,8 @@ export interface ICodeGenSession {
   scaffoldTemplate: string;
   generatedFiles: IGeneratedFile[];
   repairAttempts: number;
+  isPublic: boolean;
+  generationMode: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -167,6 +207,14 @@ export interface IGenerationStatus {
   error?: string;
 }
 
+// ─── README Result ───────────────────────────────────────────────────────────
+
+export interface IReadmeResult {
+  readmeMarkdown: string;
+  summary: string;
+  plan?: IAppSpec | null;
+}
+
 // ─── State & Action Contexts ─────────────────────────────────────────────────
 
 export interface ICodeGenStateContext {
@@ -176,6 +224,7 @@ export interface ICodeGenStateContext {
   session: ICodeGenSession | null;
   recommendation: IStackRecommendation | null;
   generationStatus: IGenerationStatus | null;
+  refinementResult: IRefinementResult | null;
   errorMessage: string;
 }
 
@@ -186,9 +235,12 @@ export interface ICodeGenActionContext {
   generateSpec: (sessionId: string) => Promise<IAppSpec>;
   saveSpec: (sessionId: string, spec: IAppSpec) => Promise<void>;
   confirmSpec: (sessionId: string) => Promise<void>;
+  generateReadme: (sessionId: string) => Promise<IReadmeResult>;
+  confirmReadme: (sessionId: string) => Promise<void>;
   startGeneration: (sessionId: string) => Promise<void>;
   pollStatus: (sessionId: string) => Promise<IGenerationStatus>;
   triggerRepair: (sessionId: string, failures: IValidationResult[]) => Promise<void>;
+  refineSession: (input: IRefinementInput) => Promise<IRefinementResult>;
   resetSession: () => void;
 }
 
@@ -199,6 +251,7 @@ export const INITIAL_STATE: ICodeGenStateContext = {
   session: null,
   recommendation: null,
   generationStatus: null,
+  refinementResult: null,
   errorMessage: "",
 };
 
@@ -210,8 +263,11 @@ export const CodeGenActionContext = createContext<ICodeGenActionContext>({
   generateSpec: async () => ({} as IAppSpec),
   saveSpec: async () => {},
   confirmSpec: async () => {},
+  generateReadme: async () => ({} as IReadmeResult),
+  confirmReadme: async () => {},
   startGeneration: async () => {},
   pollStatus: async () => ({} as IGenerationStatus),
   triggerRepair: async () => {},
+  refineSession: async () => ({} as IRefinementResult),
   resetSession: () => {},
 });

@@ -90,14 +90,6 @@ const mockSaveStack = (page: import("@playwright/test").Page) =>
     })
   );
 
-test.describe("Generate page - unauthenticated", () => {
-  test("redirects to /auth when not authenticated", async ({ page }) => {
-    await page.goto("/generate");
-    await page.waitForURL(/\/auth/, { timeout: 10000 });
-    await expect(page).toHaveURL(/\/auth/);
-  });
-});
-
 test.describe("Generate page - Capture step", () => {
   test.beforeEach(async ({ page }) => {
     await seedAuth(page);

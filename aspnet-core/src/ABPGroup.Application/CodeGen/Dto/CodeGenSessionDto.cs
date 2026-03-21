@@ -23,6 +23,10 @@ public class CodeGenSessionDto
     public string ScaffoldTemplate { get; set; }
     public List<GeneratedFileDto> GeneratedFiles { get; set; } = new();
     public int RepairAttempts { get; set; }
+    public bool IsPublic { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // NEW: Generation mode tracking
+    public string GenerationMode { get; set; } // "full" | "refinement" | "repair"
 }

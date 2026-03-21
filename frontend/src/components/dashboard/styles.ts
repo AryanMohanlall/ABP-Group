@@ -1,32 +1,35 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   page: css`
-    max-width: ${token.paddingXL * 32}px;
+    max-width: 1200px;
     margin: 0 auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   header: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginLG}px;
-    margin-bottom: ${token.marginXL}px;
+    gap: 16px;
+    margin-bottom: 24px;
 
-    @media (min-width: ${token.screenMD}px) {
+    @media (min-width: 768px) {
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
     }
   `,
   title: css`
-    font-size: ${token.fontSizeXL * 1.2}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
     margin: 0;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   actions: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
+    gap: 12px;
     flex-wrap: wrap;
   `,
   searchWrap: css`
@@ -34,22 +37,35 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   searchIcon: css`
     position: absolute;
-    left: ${token.paddingSM}px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
-    color: ${token.colorTextSecondary};
+    width: 20px;
+    height: 20px;
+    color: #8b95a2;
   `,
   searchInput: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    padding-left: ${token.paddingXL}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorText};
-    width: ${token.paddingXL * 6}px;
+    padding: 10px 16px;
+    padding-left: 40px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    font-size: 14px;
+    color: #ffffff;
+    width: 200px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(45,212,168,0.3);
+      box-shadow: 0 0 0 2px rgba(45,212,168,0.2);
+    }
+
+    &::placeholder {
+      color: #5a6572;
+    }
   `,
   filterWrap: css`
     position: relative;
@@ -58,84 +74,102 @@ export const useStyles = createStyles(({ token, css }) => ({
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: ${token.marginSM}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+    gap: 12px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #ffffff;
     cursor: pointer;
-    min-width: ${token.paddingXL * 4.5}px;
-    transition: background 0.2s ease;
+    min-width: 150px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
 
     &:hover {
-      background: ${token.colorFillSecondary};
+      background: rgba(20,30,42,0.8);
+      border-color: rgba(255,255,255,0.15);
     }
   `,
   filterIcon: css`
-    width: ${token.fontSize}px;
-    height: ${token.fontSize}px;
-    color: ${token.colorTextSecondary};
+    width: 16px;
+    height: 16px;
+    color: #8b95a2;
   `,
   filterMenu: css`
     position: absolute;
     top: 100%;
     right: 0;
-    margin-top: ${token.marginSM}px;
-    width: ${token.paddingXL * 5}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    box-shadow: ${token.boxShadow};
+    margin-top: 8px;
+    width: 180px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
     overflow: hidden;
     z-index: 20;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 4px 24px rgba(45,212,168,0.35);
   `,
   filterItem: css`
     width: 100%;
     text-align: left;
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    font-size: ${token.fontSizeSM}px;
+    padding: 12px 16px;
+    font-size: 14px;
     background: transparent;
     border: none;
-    color: ${token.colorText};
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    color: #ffffff;
     cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    transition: all 0.1s ease;
 
     &:hover {
-      background: ${token.colorFillSecondary};
+      background: rgba(20,30,42,0.8);
+      color: #2dd4a8;
+    }
+
+    &:last-child {
+      border-bottom: none;
     }
   `,
   filterItemActive: css`
-    background: ${token.colorPrimaryBg};
-    color: ${token.colorPrimary};
-    font-weight: ${token.fontWeightStrong};
+    background: rgba(45,212,168,0.1);
+    color: #2dd4a8;
+
+    &:hover {
+      background: rgba(45,212,168,0.15);
+      color: #2dd4a8;
+    }
   `,
   grid: css`
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: ${token.marginLG}px;
+    gap: 24px;
 
-    @media (min-width: ${token.screenMD}px) {
+    @media (min-width: 768px) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    @media (min-width: ${token.screenLG}px) {
+    @media (min-width: 1024px) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   `,
   emptyState: css`
     text-align: center;
-    padding: ${token.paddingXL * 2}px;
-    background: ${token.colorBgContainer};
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px dashed ${token.colorBorder};
-    color: ${token.colorTextSecondary};
+    padding: 48px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    color: #8b95a2;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid ${token.colorPrimary};
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

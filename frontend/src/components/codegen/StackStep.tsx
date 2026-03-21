@@ -6,11 +6,17 @@ import { CheckIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import type { IStackConfig } from "@/providers/codegen-provider";
+import { useTemplateAction, useTemplateState } from "@/providers/templates-provider";
 import { useStyles } from "./StackStep.styles";
+
+export interface ExtraConfig {
+  templateId: number | null;
+  projectCategory: string;
+}
 
 interface StackStepProps {
   sessionId: string;
-  onNext: (stack: IStackConfig) => void;
+  onNext: (stack: IStackConfig, extra: ExtraConfig) => void;
   onBack: () => void;
 }
 
@@ -53,10 +59,20 @@ const STACK_CATEGORIES: StackCategory[] = [
   },
 ];
 
+const EXTRA_CATEGORIES = [
+  {
+    key: "projectCategory",
+    label: "Project Category",
+    options: ["SaaS dashboard", "E-commerce store", "Blog platform", "Portfolio site", "General"],
+  },
+];
+
 export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
   const { styles, cx } = useStyles();
   const { isPending, recommendation } = useCodeGenState();
   const { recommendStack, saveStack } = useCodeGenAction();
+  const { items: templates, isPending: isLoadingTemplates } = useTemplateState();
+  const { fetchAll: fetchTemplates } = useTemplateAction();
 
   const [selections, setSelections] = useState<Record<string, string>>({
     framework: "",
@@ -66,8 +82,19 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     orm: "",
     auth: "",
   });
+  
+  const [extraSelections, setExtraSelections] = useState<Record<string, string>>({
+    projectCategory: "SaaS dashboard",
+  });
+  
+  const [templateId, setTemplateId] = useState<number | null>(null);
+
   const [reasoning, setReasoning] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
 
   useEffect(() => {
     if (!loaded) {
@@ -95,6 +122,10 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     setSelections((prev) => ({ ...prev, [category]: value }));
   };
 
+  const handleExtraSelect = (category: string, value: string) => {
+    setExtraSelections((prev) => ({ ...prev, [category]: value }));
+  };
+
   const handleConfirm = async () => {
     const stack: IStackConfig = {
       framework: selections.framework,
@@ -108,13 +139,17 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
 
     try {
       await saveStack(sessionId, stack);
-      onNext(stack);
+      onNext(stack, {
+        templateId,
+        projectCategory: extraSelections.projectCategory,
+      });
     } catch {
       message.error("Failed to save stack configuration.");
     }
   };
 
-  const allSelected = STACK_CATEGORIES.every((cat) => selections[cat.key]);
+  const allSelected = STACK_CATEGORIES.every((cat) => selections[cat.key]) && 
+                      EXTRA_CATEGORIES.every((cat) => extraSelections[cat.key]);
 
   if (!loaded) {
     return (
@@ -144,6 +179,70 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
+        <div className={styles.templateSection}>
+          <div className={styles.sectionLabel}>Start from a template</div>
+          <p className={styles.templateHint}>
+            Pick a template to guide the AI, or start from scratch and let it figure out the best structure.
+          </p>
+          <div className={styles.templateGrid}>
+            <button
+              type="button"
+              onClick={() => setTemplateId(null)}
+              className={cx(
+                styles.templateCard,
+                styles.focusRing,
+                templateId === null ? styles.templateCardSelected : styles.templateCardDefault
+              )}
+            >
+              {templateId === null && (
+                <div className={styles.selectionCheck}>
+                  <CheckIcon className={styles.iconSmall} />
+                </div>
+              )}
+              <div className={styles.templateCardIcon}>
+                <SparklesIcon style={{ width: 20, height: 20 }} />
+              </div>
+              <span className={styles.templateCardName}>Start from scratch</span>
+              <span className={styles.templateCardDesc}>AI decides the best structure</span>
+            </button>
+            {isLoadingTemplates && templates.length === 0 && (
+              <div className={styles.templateCardDesc} style={{ padding: 16, gridColumn: "1 / -1", textAlign: "center" }}>
+                Loading templates...
+              </div>
+            )}
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTemplateId(t.id)}
+                className={cx(
+                  styles.templateCard,
+                  styles.focusRing,
+                  templateId === t.id ? styles.templateCardSelected : styles.templateCardDefault
+                )}
+              >
+                {templateId === t.id && (
+                  <div className={styles.selectionCheck}>
+                    <CheckIcon className={styles.iconSmall} />
+                  </div>
+                )}
+                <div className={styles.templateCardIcon}>
+                  <SparklesIcon style={{ width: 20, height: 20 }} />
+                </div>
+                <span className={styles.templateCardName}>{t.name}</span>
+                {t.category && (
+                  <span className={styles.templateCardDesc}>{t.category}</span>
+                )}
+                {t.description && (
+                  <span className={styles.templateCardDesc}>{t.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.divider} />
+
         {STACK_CATEGORIES.map((category) => (
           <div key={category.key}>
             <div className={styles.sectionLabel}>{category.label}</div>
@@ -183,6 +282,37 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
                       )}
                     </button>
                   </Tooltip>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className={styles.divider} />
+
+        {EXTRA_CATEGORIES.map((category) => (
+          <div key={category.key}>
+            <div className={styles.sectionLabel}>{category.label}</div>
+            <div className={styles.selectionGrid}>
+              {category.options.map((option) => {
+                const isSelected = extraSelections[category.key] === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={cx(
+                      styles.selectionCard,
+                      isSelected
+                        ? styles.selectionCardSelected
+                        : styles.selectionCardDefault
+                    )}
+                    onClick={() => handleExtraSelect(category.key, option)}
+                  >
+                    {isSelected && (
+                      <CheckIcon className={styles.selectionCheck} size={16} />
+                    )}
+                    <span className={styles.selectionLabel}>{option}</span>
+                  </button>
                 );
               })}
             </div>

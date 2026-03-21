@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace ABPGroup.Templates;
 
-[AbpAuthorize(PermissionNames.Pages_Templates)]
+// [AbpAuthorize(PermissionNames.Pages_Templates)]
 public class TemplateAppService
     : AsyncCrudAppService<Template, TemplateDto, int, TemplateListInput, CreateUpdateTemplateDto, CreateUpdateTemplateDto, EntityDto<int>, EntityDto<int>>,
       ITemplateAppService
@@ -31,6 +31,9 @@ public class TemplateAppService
         _favoriteRepository = favoriteRepository;
         _userManager = userManager;
 
+        CreatePermissionName = PermissionNames.Pages_Templates_Create;
+        UpdatePermissionName = PermissionNames.Pages_Templates_Edit;
+        DeletePermissionName = PermissionNames.Pages_Templates_Delete;
     }
 
     public override async Task<TemplateDto> CreateAsync(CreateUpdateTemplateDto input)

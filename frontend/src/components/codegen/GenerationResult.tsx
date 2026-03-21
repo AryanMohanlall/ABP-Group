@@ -7,6 +7,7 @@ import {
   RocketIcon,
   RefreshCwIcon,
   ArrowLeftIcon,
+  SaveIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
@@ -17,16 +18,22 @@ interface GenerationResultProps {
   sessionId: string;
   status: IGenerationStatus;
   onDeploy: () => void;
+  onSaveOnly?: () => void;
   onRetry: () => void;
   onBack: () => void;
+  isDeploying?: boolean;
+  isSaving?: boolean;
 }
 
 export function GenerationResult({
   sessionId,
   status,
   onDeploy,
+  onSaveOnly,
   onRetry,
   onBack,
+  isDeploying = false,
+  isSaving = false,
 }: GenerationResultProps) {
   const { styles } = useStyles();
   const { isPending, session } = useCodeGenState();
@@ -43,7 +50,10 @@ export function GenerationResult({
       ? `All ${totalValidations} validations passed. Your app is ready to deploy.`
       : `${passedValidations} of ${totalValidations} validations passed. Your app is ready to deploy.`;
   const isSuccess = !status.error && failures.length === 0;
-  const canRepair = failures.length > 0 && failures.length <= 3 && (session?.repairAttempts ?? 0) < 2;
+  const repairAttempts = session?.repairAttempts ?? 0;
+  const maxRepairAttempts = 5;
+  const canRepair = failures.length > 0 && failures.length <= 5 && repairAttempts < maxRepairAttempts;
+  const canUseRefinement = failures.length > 0 && repairAttempts >= maxRepairAttempts;
 
   const handleRepair = async () => {
     try {
@@ -77,9 +87,10 @@ export function GenerationResult({
                 type="button"
                 className={styles.primaryButton}
                 onClick={onDeploy}
+                disabled={isDeploying}
               >
-                <RocketIcon size={16} />
-                Commit &amp; Deploy
+                {isDeploying ? <Spin size="small" /> : <RocketIcon size={16} />}
+                {isDeploying ? "Deploying..." : "Commit & Deploy"}
               </button>
               <button
                 type="button"
@@ -142,7 +153,18 @@ export function GenerationResult({
               disabled={isPending}
             >
               {isPending ? <Spin size="small" /> : <RefreshCwIcon size={16} />}
-              Auto-Repair ({2 - (session?.repairAttempts ?? 0)} attempts left)
+              Auto-Repair ({maxRepairAttempts - repairAttempts} attempts left)
+            </button>
+          )}
+          {canUseRefinement && (
+            <button
+              type="button"
+              className={styles.repairButton}
+              onClick={onBack}
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+            >
+              <RefreshCwIcon size={16} />
+              Use Refinement Instead
             </button>
           )}
           <button
@@ -153,6 +175,18 @@ export function GenerationResult({
             <ArrowLeftIcon size={16} />
             Back to Spec
           </button>
+          {!status.error && onSaveOnly && (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={onSaveOnly}
+              disabled={isSaving}
+              style={{ borderColor: '#ef4444', color: '#ef4444' }}
+            >
+              {isSaving ? <Spin size="small" /> : <SaveIcon size={16} />}
+              {isSaving ? "Saving..." : "Save to DB"}
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

@@ -3,6 +3,7 @@ import {
   ICodeGenSession,
   ICodeGenStateContext,
   IGenerationStatus,
+  IRefinementResult,
   IStackRecommendation,
 } from "./context";
 
@@ -42,6 +43,10 @@ export enum CodeGenStateEnums {
   TRIGGER_REPAIR_PENDING = "CODEGEN_TRIGGER_REPAIR_PENDING",
   TRIGGER_REPAIR_SUCCESS = "CODEGEN_TRIGGER_REPAIR_SUCCESS",
   TRIGGER_REPAIR_ERROR = "CODEGEN_TRIGGER_REPAIR_ERROR",
+
+  REFINE_SESSION_PENDING = "CODEGEN_REFINE_SESSION_PENDING",
+  REFINE_SESSION_SUCCESS = "CODEGEN_REFINE_SESSION_SUCCESS",
+  REFINE_SESSION_ERROR = "CODEGEN_REFINE_SESSION_ERROR",
 
   RESET_SESSION = "CODEGEN_RESET_SESSION",
 }
@@ -263,6 +268,33 @@ export const triggerRepairSuccess = createAction(
 
 export const triggerRepairError = createAction(
   CodeGenStateEnums.TRIGGER_REPAIR_ERROR,
+  (errorMessage: string): CodeGenPayload => ({
+    isPending: false,
+    isSuccess: false,
+    isError: true,
+    errorMessage,
+  })
+);
+
+// ─── Refine Session ─────────────────────────────────────────────────────────
+
+export const refineSessionPending = createAction<CodeGenPayload>(
+  CodeGenStateEnums.REFINE_SESSION_PENDING,
+  () => ({ isPending: true, isSuccess: false, isError: false, errorMessage: "" })
+);
+
+export const refineSessionSuccess = createAction(
+  CodeGenStateEnums.REFINE_SESSION_SUCCESS,
+  (refinementResult: IRefinementResult): CodeGenPayload => ({
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    refinementResult,
+  })
+);
+
+export const refineSessionError = createAction(
+  CodeGenStateEnums.REFINE_SESSION_ERROR,
   (errorMessage: string): CodeGenPayload => ({
     isPending: false,
     isSuccess: false,

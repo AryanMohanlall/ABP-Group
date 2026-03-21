@@ -20,4 +20,11 @@ public interface ICodeGenAppService : IApplicationService
     Task<CodeGenSessionDto> Generate(string sessionId);
     Task<GenerationStatusDto> GetStatus(string sessionId);
     Task<CodeGenSessionDto> Repair(TriggerRepairInput input);
+
+    // NEW: Refinement/diff-based updates
+    Task<RefinementResultDto> RefineSession(RefinementInputDto input);
+
+    // NEW: Generate human-readable README/spec for review
+    Task<ReadmeResultDto> GenerateReadme(string sessionId);
+    Task<CodeGenSessionDto> ConfirmReadme(string sessionId);
 }

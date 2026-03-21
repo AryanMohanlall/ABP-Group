@@ -38,6 +38,10 @@ export const CodeGenReducer = handleActions<ICodeGenStateContext, Partial<ICodeG
     [CodeGenStateEnums.TRIGGER_REPAIR_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),
     [CodeGenStateEnums.TRIGGER_REPAIR_ERROR]: (state, { payload }) => ({ ...state, ...payload }),
 
+    [CodeGenStateEnums.REFINE_SESSION_PENDING]: (state, { payload }) => ({ ...state, ...payload }),
+    [CodeGenStateEnums.REFINE_SESSION_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),
+    [CodeGenStateEnums.REFINE_SESSION_ERROR]: (state, { payload }) => ({ ...state, ...payload }),
+
     [CodeGenStateEnums.RESET_SESSION]: (state, { payload }) => ({ ...state, ...payload }),
   },
   INITIAL_STATE

@@ -1,153 +1,191 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   card: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginLG}px;
-    padding: ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    box-shadow: ${token.boxShadowSecondary};
+    gap: 16px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     height: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
+    }
   `,
   header: css`
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(45,212,168,0.1), rgba(32,196,154,0.1));
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 14px;
   `,
   title: css`
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   meta: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
-    margin: 0;
+    font-size: 12px;
+    color: #8b95a2;
+    margin: 4px 0 0;
   `,
   statusBadge: css`
-    padding: ${token.paddingSM / 2}px ${token.paddingSM}px;
-    border-radius: ${token.borderRadiusLG}px;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border-radius: 8px;
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
   `,
   statusDraft: css`
-    color: ${token.colorTextSecondary};
-    background: ${token.colorFillSecondary};
+    color: #8b95a2;
+    border-color: rgba(255,255,255,0.1);
+    background: rgba(12,18,28,0.7);
   `,
   statusGenerating: css`
-    color: ${token.colorWarning};
-    background: ${token.colorWarningBg};
+    color: #faad14;
+    border-color: rgba(250,173,20,0.3);
+    background: rgba(250,173,20,0.1);
   `,
   statusGenerated: css`
-    color: ${token.colorPrimary};
-    background: ${token.colorPrimaryBg};
+    color: #2dd4a8;
+    border-color: rgba(45,212,168,0.3);
+    background: rgba(45,212,168,0.1);
   `,
   statusDeploying: css`
-    color: ${token.colorWarning};
-    background: ${token.colorWarningBg};
+    color: #faad14;
+    border-color: rgba(250,173,20,0.3);
+    background: rgba(250,173,20,0.1);
   `,
   statusLive: css`
-    color: ${token.colorSuccess};
-    background: ${token.colorSuccessBg};
+    color: #52c41a;
+    border-color: rgba(82,196,26,0.3);
+    background: rgba(82,196,26,0.1);
   `,
   statusFailed: css`
-    color: ${token.colorError};
-    background: ${token.colorErrorBg};
+    color: #ff4d4f;
+    border-color: rgba(255,77,79,0.3);
+    background: rgba(255,77,79,0.1);
   `,
   body: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 20px;
   `,
   updatedAt: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #8b95a2;
     margin: 0;
   `,
   url: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorPrimary};
+    font-size: 14px;
+    color: #2dd4a8;
     text-decoration: none;
+    transition: opacity 0.2s ease;
 
     &:hover {
-      text-decoration: underline;
+      opacity: 0.8;
     }
   `,
   urlMuted: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #8b95a2;
   `,
   footer: css`
     margin-top: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.06);
   `,
   footerActions: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
+    gap: 12px;
   `,
   deleteButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid ${token.colorErrorBorder};
-    background: ${token.colorErrorBg};
-    color: ${token.colorError};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 8px 16px;
+    border: 1px solid rgba(255,77,79,0.3);
+    background: rgba(255,77,79,0.1);
+    color: #ff4d4f;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
-    transition: filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 8px;
 
     &:hover:not(:disabled) {
-      filter: brightness(0.98);
+      background: rgba(255,77,79,0.2);
+      border-color: rgba(255,77,79,0.5);
+      box-shadow: 0 4px 24px rgba(255,77,79,0.35);
     }
 
     &:disabled {
       cursor: not-allowed;
-      opacity: 0.7;
+      opacity: 0.5;
     }
   `,
   viewButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
+    padding: 8px 16px;
     border: none;
-    background: ${token.colorPrimary};
-    color: ${token.colorBgContainer};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    letter-spacing: -0.2px;
 
     &:hover {
-      filter: brightness(1.05);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
 
     &:active {
-      transform: scale(0.98);
+      transform: translateY(0);
     }
   `,
   claimButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid #000;
-    background: #000;
-    color: #fff;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 8px 16px;
+    border: 1px solid rgba(45,212,168,0.3);
+    background: rgba(45,212,168,0.1);
+    color: #2dd4a8;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 8px;
 
     &:hover {
-      filter: brightness(1.2);
+      background: rgba(45,212,168,0.2);
+      border-color: rgba(45,212,168,0.5);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
 
     &:active {
@@ -155,12 +193,12 @@ export const useStyles = createStyles(({ token, css }) => ({
     }
   `,
   details: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #8b95a2;
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid ${token.colorPrimary};
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

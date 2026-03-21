@@ -1,120 +1,176 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   page: css`
-    min-height: 100vh;
-    padding: ${token.paddingXL}px;
-    background: ${token.colorBgLayout};
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   toolbar: css`
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: ${token.margin}px;
-    margin-bottom: ${token.marginLG}px;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+
+    @media (min-width: 768px) {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
   `,
+
   titleWrap: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM / 2}px;
+    gap: 4px;
   `,
+
   title: css`
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
     margin: 0;
-    font-size: ${token.fontSizeXL}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   subtitle: css`
+    font-size: 14px;
+    color: #8b95a2;
     margin: 0;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSize}px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   controls: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
+    gap: 12px;
     flex-wrap: wrap;
   `,
+
   search: css`
-    width: ${token.paddingXL * 10}px;
-    max-width: 100%;
+    flex: 1;
+    min-width: 200px;
   `,
+
   stateCard: css`
-    border-radius: ${token.borderRadiusLG}px;
-    border-color: ${token.colorBorder};
-    background: ${token.colorBgContainer};
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(12, 18, 28, 0.7) !important;
+    backdrop-filter: blur(20px);
+    border-radius: 20px !important;
   `,
+
   stateInner: css`
-    min-height: ${token.paddingXL * 8}px;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 48px;
   `,
+
   grid: css`
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(${token.paddingXL * 10}px, 1fr));
-    gap: ${token.marginLG}px;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 24px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   `,
+
   templateCard: css`
-    height: 100%;
-    border-radius: ${token.borderRadiusLG}px;
-    border-color: ${token.colorBorder};
-    background: ${token.colorBgContainer};
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(12, 18, 28, 0.7) !important;
+    backdrop-filter: blur(20px);
+    border-radius: 20px !important;
+    box-shadow: 0 0 80px rgba(45, 212, 168, 0.03) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      border-color: rgba(45, 212, 168, 0.2) !important;
+      box-shadow: 0 0 40px rgba(45, 212, 168, 0.08) !important;
+    }
+
+    .ant-card-body {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 20px;
+    }
   `,
+
   templateHeader: css`
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    gap: ${token.marginSM}px;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
   `,
+
   templateName: css`
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
     margin: 0;
-    color: ${token.colorText};
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
+    letter-spacing: -0.3px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   description: css`
-    margin: ${token.marginSM}px 0 ${token.margin}px;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSize}px;
-    line-height: 1.5;
-    min-height: ${token.paddingXL * 2}px;
+    font-size: 13px;
+    color: #8b95a2;
+    margin: 0 0 16px;
+    line-height: 1.6;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   `,
+
   metaGrid: css`
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: ${token.marginSM}px;
-    margin-bottom: ${token.margin}px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.04);
   `,
+
   metaItem: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM / 3}px;
+    gap: 2px;
   `,
+
   metaLabel: css`
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeSM}px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #5a6572;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   metaValue: css`
-    color: ${token.colorText};
-    font-size: ${token.fontSize}px;
-    font-weight: ${token.fontWeightStrong};
+    font-size: 13px;
+    font-weight: 500;
+    color: #c9d1db;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
+
   tagsRow: css`
     display: flex;
     flex-wrap: wrap;
-    gap: ${token.marginSM / 2}px;
-    margin-bottom: ${token.margin}px;
-  `,
-  sourceLink: css`
-    color: ${token.colorPrimary};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: underline;
-    }
+    gap: 6px;
+    margin-bottom: 8px;
   `,
 }));

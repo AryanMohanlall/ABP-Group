@@ -4,11 +4,11 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StepIndicator } from "@/components/StepIndicator";
 import { CaptureStep } from "@/components/codegen/CaptureStep";
-import { StackStep } from "@/components/codegen/StackStep";
-import { SpecPreview } from "@/components/codegen/SpecPreview";
+import { StackStep, type ExtraConfig } from "@/components/codegen/StackStep";
+import { SpecReviewStep } from "@/components/codegen/SpecReviewStep";
 import { GenerationProgress } from "@/components/codegen/GenerationProgress";
 import { GenerationResult } from "@/components/codegen/GenerationResult";
-import type { ICodeGenSession, IGenerationStatus } from "@/providers/codegen-provider";
+import type { ICodeGenSession, IGenerationStatus, IStackConfig } from "@/providers/codegen-provider";
 import {
   ProjectDatabaseOption,
   ProjectFramework,
@@ -54,14 +54,18 @@ export default function GeneratePage() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [session, setSession] = useState<ICodeGenSession | null>(null);
+  const [extraConfig, setExtraConfig] = useState<ExtraConfig | null>(null);
   const [generationStatus, setGenerationStatus] = useState<IGenerationStatus | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleCaptureNext = (result: ICodeGenSession) => {
     setSession(result);
     setCurrentStep(2);
   };
 
-  const handleStackNext = () => {
+  const handleStackNext = (stack: IStackConfig, extra: ExtraConfig) => {
+    setExtraConfig(extra);
     setCurrentStep(3);
   };
 
@@ -76,6 +80,7 @@ export default function GeneratePage() {
 
   const handleDeploy = async () => {
     if (!session) return;
+    setIsDeploying(true);
 
     try {
       // Create a Project entity from the session so the GenerationPage
@@ -91,6 +96,7 @@ export default function GeneratePage() {
         databaseOption: mapDatabase(stack?.database),
         includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
         status: ProjectStatus.CodeGenerationCompleted,
+        templateId: extraConfig?.templateId ?? undefined,
       });
 
       sessionStorage.setItem("generatingProjectId", String(project.id));
@@ -101,6 +107,32 @@ export default function GeneratePage() {
         sessionStorage.setItem("generatingProjectId", String(session.projectId));
       }
       router.push("/generation");
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  const handleSaveOnly = async () => {
+    if (!session) return;
+    setIsSaving(true);
+
+    try {
+      const stack = session.confirmedStack;
+      await createProject({
+        name: session.projectName || "generated-app",
+        prompt: session.normalizedRequirement || session.prompt,
+        promptVersion: 1,
+        framework: mapFramework(stack?.framework),
+        language: mapLanguage(stack?.language),
+        databaseOption: mapDatabase(stack?.database),
+        includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
+        status: ProjectStatus.CodeGenerationCompleted,
+        templateId: extraConfig?.templateId ?? undefined,
+      });
+
+      router.push("/projects");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -130,7 +162,7 @@ export default function GeneratePage() {
       )}
 
       {currentStep === 3 && session && (
-        <SpecPreview
+        <SpecReviewStep
           sessionId={session.id}
           onConfirm={handleSpecConfirm}
           onBack={() => setCurrentStep(2)}
@@ -149,8 +181,11 @@ export default function GeneratePage() {
           sessionId={session.id}
           status={generationStatus}
           onDeploy={handleDeploy}
+          onSaveOnly={handleSaveOnly}
           onRetry={handleRetry}
           onBack={handleBackToSpec}
+          isDeploying={isDeploying}
+          isSaving={isSaving}
         />
       )}
     </div>
