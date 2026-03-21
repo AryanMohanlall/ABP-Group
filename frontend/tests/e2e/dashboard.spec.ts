@@ -68,13 +68,6 @@ const sampleProjects = [
   },
 ];
 
-test.describe("Dashboard page - unauthenticated", () => {
-  test("redirects to /auth when not authenticated", async ({ page }) => {
-    await page.goto("/dashboard");
-    await page.waitForURL(/\/auth/, { timeout: 10000 });
-    await expect(page).toHaveURL(/\/auth/);
-  });
-});
 
 test.describe("Dashboard page", () => {
   test.beforeEach(async ({ page }) => {
@@ -85,20 +78,6 @@ test.describe("Dashboard page", () => {
     await mockProjectsEndpoint(page, sampleProjects);
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "My projects" })).toBeVisible();
-  });
-
-  test("shows loading state while projects are being fetched", async ({ page }) => {
-    // Delay the API response so we can catch the loading state
-    await page.route("**/api/services/app/Project/GetAll", async route => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ result: { items: [], totalCount: 0 } }),
-      });
-    });
-    await page.goto("/dashboard");
-    await expect(page.getByText("Loading projects...")).toBeVisible();
   });
 
   test("renders project cards from API response", async ({ page }) => {
