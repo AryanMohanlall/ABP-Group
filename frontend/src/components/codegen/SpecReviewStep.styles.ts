@@ -45,15 +45,29 @@ export const useStyles = createStyles(({ css }) => ({
 
   // ── Loading (generating) state ─────────────────────────────────────────────
   loadingCard: css`
-    background: rgba(12, 18, 28, 0.4);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 24px;
-    padding: 48px;
+    background: rgba(12, 18, 28, 0.7);
+    backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(45, 212, 168, 0.15);
+    border-radius: 28px;
+    padding: 64px 48px;
     display: flex;
     flex-direction: column;
     gap: 40px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+    box-shadow: 
+      0 24px 64px rgba(0, 0, 0, 0.6),
+      0 0 40px rgba(45, 212, 168, 0.05);
+    position: relative;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(45, 212, 168, 0.4), transparent);
+    }
   `,
   loadingStageRow: css`
     display: flex;
@@ -80,26 +94,73 @@ export const useStyles = createStyles(({ css }) => ({
   loadingText: css`
     font-size: 14px;
     color: #8b95a2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `,
+  loadingSparkle: css`
+    color: #2dd4a8;
+    font-size: 14px;
+    animation: sparkle 2s infinite ease-in-out;
+
+    @keyframes sparkle {
+      0%, 100% { opacity: 0.4; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
   `,
   loadingTimeline: css`
     display: flex;
     gap: 12px;
   `,
-  loadingStagePill: css`
+  loadingStageContainer: css`
     flex: 1;
-    height: 6px;
-    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  `,
+  loadingStagePill: css`
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
     transition: all 0.5s ease;
   `,
   loadingStageActive: css`
-    background: #2dd4a8;
-    box-shadow: 0 0 12px rgba(45, 212, 168, 0.5);
+    background: linear-gradient(90deg, #2dd4a8, #00f2fe);
+    box-shadow: 0 0 16px rgba(45, 212, 168, 0.6);
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: shimmer 1.5s infinite;
+    }
+
+    @keyframes shimmer {
+      100% { left: 100%; }
+    }
   `,
   loadingStageComplete: css`
-    background: rgba(45, 212, 168, 0.3);
+    background: #2dd4a8;
+    opacity: 0.6;
   `,
   loadingStagePending: css`
     background: rgba(255, 255, 255, 0.06);
+  `,
+  loadingStageLabel: css`
+    font-size: 13px;
+    font-weight: 500;
+    color: #5a6572;
+    transition: all 0.3s ease;
+  `,
+  loadingStageLabelActive: css`
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.2);
   `,
   loadingPreviewGrid: css`
     display: grid;
@@ -108,9 +169,21 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   loadingPreviewCard: css`
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 16px;
     padding: 24px;
+    transition: all 0.3s ease;
+
+    .ant-skeleton-content .ant-skeleton-title,
+    .ant-skeleton-content .ant-skeleton-paragraph > li {
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 25%,
+        rgba(45, 212, 168, 0.08) 37%,
+        rgba(255, 255, 255, 0.04) 63%
+      );
+      background-size: 400% 100%;
+    }
   `,
 
   // ── Error / unavailable state ──────────────────────────────────────────────

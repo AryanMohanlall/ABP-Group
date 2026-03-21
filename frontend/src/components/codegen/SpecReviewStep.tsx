@@ -1,14 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Skeleton, Spin, message } from "antd";
-import { RocketIcon, ArrowLeftIcon, FileTextIcon } from "lucide-react";
+import {
+  Skeleton,
+  Spin,
+  message,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Checkbox,
+  Space,
+  Button,
+  Divider,
+  Tooltip,
+} from "antd";
+import {
+  RocketIcon,
+  ArrowLeftIcon,
+  FileTextIcon,
+  PlusIcon,
+  PencilIcon,
+  Trash2Icon,
+  DatabaseIcon,
+  MonitorIcon,
+  ServerIcon,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import {
   useCodeGenAction,
   useCodeGenState,
 } from "@/providers/codegen-provider";
-import type { IReadmeResult } from "@/providers/codegen-provider";
+import type {
+  IReadmeResult,
+  IAppSpec,
+  IEntitySpec,
+  IPageSpec,
+  IApiRouteSpec,
+} from "@/providers/codegen-provider";
 import { useStyles } from "./SpecReviewStep.styles";
 
 interface SpecReviewStepProps {
@@ -20,19 +49,29 @@ interface SpecReviewStepProps {
 const LOADING_STAGES = [
   {
     title: "Drafting the README",
-    description:
-      "Turning your prompt and selected stack into a clear application brief.",
+    description: "Turning your prompt and selected stack into a clear application brief.",
   },
   {
     title: "Deriving the build plan",
-    description:
-      "Recovering entities, routes, APIs, and package needs from that README.",
+    description: "Recovering entities, routes, APIs, and package needs from that README.",
   },
   {
     title: "Preparing the review",
-    description:
-      "Organizing everything into a preview you can sanity-check before generation.",
+    description: "Organizing everything into a preview you can sanity-check before generation.",
   },
+];
+
+const AI_THOUGHTS = [
+  "Inference in progress...",
+  "Detecting data relationships...",
+  "Normalizing API patterns...",
+  "Calculating dependency tree...",
+  "Defining security boundaries...",
+  "Optimizing page layouts...",
+  "Wiring up event handlers...",
+  "Ensuring type safety...",
+  "Mapping navigation flow...",
+  "Polishing the brief...",
 ];
 
 function isNonEmpty(value: string | null | undefined): value is string {
@@ -91,23 +130,40 @@ export function SpecReviewStep({
   onConfirm,
   onBack,
 }: SpecReviewStepProps) {
-  const { styles } = useStyles();
+  const { styles, cx } = useStyles();
   const { isPending } = useCodeGenState();
-  const { generateReadme, confirmReadme } = useCodeGenAction();
+  const { generateReadme, confirmReadme, saveSpec } = useCodeGenAction();
 
   const [readmeResult, setReadmeResult] = useState<IReadmeResult | null>(null);
+  const [editablePlan, setEditablePlan] = useState<IAppSpec | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
+  const [currentThought, setCurrentThought] = useState(AI_THOUGHTS[0]);
 
-  const plan = readmeResult?.plan ?? null;
-  const planHeadline = buildPlanHeadline(readmeResult);
-  const plannedPackages = buildPlannedPackages(readmeResult);
-  const entityPreview = (plan?.entities ?? []).slice(0, 4);
-  const pagePreview = (plan?.pages ?? []).slice(0, 6);
-  const apiPreview = (plan?.apiRoutes ?? []).slice(0, 4);
-  const packagePreview = plannedPackages.slice(0, 6);
-  const hasHomePage = (plan?.pages ?? []).some((page) => page.route === "/");
+  // Modal states
+  const [entityModalVisible, setEntityModalVisible] = useState(false);
+  const [pageModalVisible, setPageModalVisible] = useState(false);
+  const [apiModalVisible, setApiModalVisible] = useState(false);
+
+  // Editing states
+  const [editingEntity, setEditingEntity] = useState<IEntitySpec | null>(null);
+  const [editingPage, setEditingPage] = useState<IPageSpec | null>(null);
+  const [editingApi, setEditingApi] = useState<IApiRouteSpec | null>(null);
+
+  const [form] = Form.useForm();
+
+  const plan = editablePlan || readmeResult?.plan || null;
+  const planHeadline = buildPlanHeadline({ ...readmeResult!, plan });
+  const plannedPackages = buildPlannedPackages({ ...readmeResult!, plan });
+
+  const entityPreview = plan?.entities ?? [];
+  const pagePreview = plan?.pages ?? [];
+  const apiPreview = plan?.apiRoutes ?? [];
+  const packagePreview = plannedPackages;
+
+  const hasHomePage = pagePreview.some((page) => page.route === "/");
+
   const previewMetrics = plan
     ? [
         {
@@ -148,6 +204,9 @@ export function SpecReviewStep({
     generateReadme(sessionId)
       .then((result) => {
         setReadmeResult(result);
+        if (result.plan) {
+          setEditablePlan(result.plan);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -163,15 +222,164 @@ export function SpecReviewStep({
       return;
     }
 
-    const interval = window.setInterval(() => {
+    const stageInterval = window.setInterval(() => {
       setLoadingStageIndex((current) => (current + 1) % LOADING_STAGES.length);
-    }, 1600);
+    }, 2800);
 
-    return () => window.clearInterval(interval);
+    const thoughtInterval = window.setInterval(() => {
+      setCurrentThought(AI_THOUGHTS[Math.floor(Math.random() * AI_THOUGHTS.length)]);
+    }, 1200);
+
+    return () => {
+      window.clearInterval(stageInterval);
+      window.clearInterval(thoughtInterval);
+    };
   }, [loading]);
+
+  // ─── Entity Handlers ───────────────────────────────────────────────────────
+
+  const handleAddEntity = () => {
+    setEditingEntity(null);
+    form.resetFields();
+    form.setFieldsValue({ fields: [{ name: "id", type: "string", required: true }] });
+    setEntityModalVisible(true);
+  };
+
+  const handleEditEntity = (entity: IEntitySpec) => {
+    setEditingEntity(entity);
+    form.setFieldsValue(entity);
+    setEntityModalVisible(true);
+  };
+
+  const handleDeleteEntity = (entityName: string) => {
+    if (!editablePlan) return;
+    const newEntities = editablePlan.entities.filter((e) => e.name !== entityName);
+    const newPlan = { ...editablePlan, entities: newEntities };
+    setEditablePlan(newPlan);
+    message.success(`Entity "${entityName}" removed.`);
+  };
+
+  const handleEntityModalOk = async () => {
+    try {
+      const values = await form.validateFields();
+      if (!editablePlan) return;
+
+      let newEntities: IEntitySpec[];
+      if (editingEntity) {
+        newEntities = editablePlan.entities.map((e) =>
+          e.name === editingEntity.name ? { ...e, ...values } : e
+        );
+      } else {
+        if (editablePlan.entities.some((e) => e.name === values.name)) {
+          message.error("An entity with this name already exists.");
+          return;
+        }
+        newEntities = [...editablePlan.entities, { ...values, relations: [], tableName: values.name.toLowerCase() }];
+      }
+
+      setEditablePlan({ ...editablePlan, entities: newEntities });
+      setEntityModalVisible(false);
+    } catch (err) {
+      // Validation failed
+    }
+  };
+
+  // ─── Page Handlers ─────────────────────────────────────────────────────────
+
+  const handleAddPage = () => {
+    setEditingPage(null);
+    form.resetFields();
+    form.setFieldsValue({ layout: "authenticated" });
+    setPageModalVisible(true);
+  };
+
+  const handleEditPage = (page: IPageSpec) => {
+    setEditingPage(page);
+    form.setFieldsValue(page);
+    setPageModalVisible(true);
+  };
+
+  const handleDeletePage = (route: string) => {
+    if (!editablePlan) return;
+    const newPages = editablePlan.pages.filter((p) => p.route !== route);
+    setEditablePlan({ ...editablePlan, pages: newPages });
+    message.success(`Page route "${route}" removed.`);
+  };
+
+  const handlePageModalOk = async () => {
+    try {
+      const values = await form.validateFields();
+      if (!editablePlan) return;
+
+      let newPages: IPageSpec[];
+      if (editingPage) {
+        newPages = editablePlan.pages.map((p) =>
+          p.route === editingPage.route ? { ...p, ...values } : p
+        );
+      } else {
+        if (editablePlan.pages.some((p) => p.route === values.route)) {
+          message.error("A page with this route already exists.");
+          return;
+        }
+        newPages = [...editablePlan.pages, { ...values, components: [], dataRequirements: [] }];
+      }
+
+      setEditablePlan({ ...editablePlan, pages: newPages });
+      setPageModalVisible(false);
+    } catch (err) {}
+  };
+
+  // ─── API Route Handlers ────────────────────────────────────────────────────
+
+  const handleAddApi = () => {
+    setEditingApi(null);
+    form.resetFields();
+    form.setFieldsValue({ method: "GET", auth: true });
+    setApiModalVisible(true);
+  };
+
+  const handleEditApi = (api: IApiRouteSpec) => {
+    setEditingApi(api);
+    form.setFieldsValue(api);
+    setApiModalVisible(true);
+  };
+
+  const handleDeleteApi = (method: string, path: string) => {
+    if (!editablePlan) return;
+    const newApis = editablePlan.apiRoutes.filter((a) => !(a.method === method && a.path === path));
+    setEditablePlan({ ...editablePlan, apiRoutes: newApis });
+    message.success(`API endpoint "${method} ${path}" removed.`);
+  };
+
+  const handleApiModalOk = async () => {
+    try {
+      const values = await form.validateFields();
+      if (!editablePlan) return;
+
+      let newApis: IApiRouteSpec[];
+      if (editingApi) {
+        newApis = editablePlan.apiRoutes.map((a) =>
+          a.method === editingApi.method && a.path === editingApi.path ? { ...a, ...values } : a
+        );
+      } else {
+        if (editablePlan.apiRoutes.some((a) => a.method === values.method && a.path === values.path)) {
+          message.error("An API route with this method and path already exists.");
+          return;
+        }
+        newApis = [...editablePlan.apiRoutes, { ...values, handler: "", responseShape: {} }];
+      }
+
+      setEditablePlan({ ...editablePlan, apiRoutes: newApis });
+      setApiModalVisible(false);
+    } catch (err) {}
+  };
 
   const handleConfirm = async () => {
     try {
+      if (editablePlan) {
+        // Save the manual changes back to the session before confirming
+        await saveSpec(sessionId, editablePlan);
+      }
       await confirmReadme(sessionId);
       onConfirm();
     } catch {
@@ -186,6 +394,9 @@ export function SpecReviewStep({
     try {
       const result = await generateReadme(sessionId);
       setReadmeResult(result);
+      if (result.plan) {
+        setEditablePlan(result.plan);
+      }
     } catch {
       setLoadError("Failed to generate README. Please retry.");
       message.error("Failed to generate README.");
@@ -204,12 +415,22 @@ export function SpecReviewStep({
               <span className={styles.loadingEyebrow}>
                 Preparing your review
               </span>
-              <span className={styles.loadingTitle}>
+              <motion.span 
+                key={loadingStageIndex}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={styles.loadingTitle}
+              >
                 {LOADING_STAGES[loadingStageIndex]?.title}
-              </span>
-              <span className={styles.loadingText}>
-                {LOADING_STAGES[loadingStageIndex]?.description}
-              </span>
+              </motion.span>
+              <motion.span 
+                key={currentThought}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={styles.loadingText}
+              >
+                <span className={styles.loadingSparkle}>✨</span> {currentThought}
+              </motion.span>
             </div>
           </div>
 
@@ -225,9 +446,12 @@ export function SpecReviewStep({
               return (
                 <div
                   key={stage.title}
-                  className={`${styles.loadingStagePill} ${stateClassName}`}
+                  className={styles.loadingStageContainer}
                 >
-                  <span>{stage.title}</span>
+                  <div className={`${styles.loadingStagePill} ${stateClassName}`} />
+                  <span className={cx(styles.loadingStageLabel, stateClassName === styles.loadingStageActive && styles.loadingStageLabelActive)}>
+                    {stage.title}
+                  </span>
                 </div>
               );
             })}
@@ -336,10 +560,18 @@ export function SpecReviewStep({
           <div className={styles.previewGrid}>
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
+                <DatabaseIcon size={16} color="#2dd4a8" />
                 <h4 className={styles.previewSectionTitle}>Entities</h4>
-                <span className={styles.previewSectionHint}>
-                  What the app tracks
-                </span>
+                <div style={{ flex: 1 }} />
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlusIcon size={14} />}
+                  onClick={handleAddEntity}
+                  style={{ color: "#2dd4a8" }}
+                >
+                  Add
+                </Button>
               </div>
               {entityPreview.length > 0 ? (
                 <div className={styles.previewList}>
@@ -356,9 +588,29 @@ export function SpecReviewStep({
                           <span className={styles.previewItemPrimary}>
                             {entity.name}
                           </span>
-                          <span className={styles.previewBadge}>
-                            {describeCount(entity.fields.length, "field")}
-                          </span>
+                          <Space size={4}>
+                            <Tooltip title="Edit">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<PencilIcon size={12} />}
+                                onClick={() => handleEditEntity(entity)}
+                                style={{ color: "#8b95a2" }}
+                              />
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<Trash2Icon size={12} />}
+                                onClick={() => handleDeleteEntity(entity.name)}
+                                style={{ color: "#ff4d4f" }}
+                              />
+                            </Tooltip>
+                            <span className={styles.previewBadge}>
+                              {describeCount(entity.fields.length, "field")}
+                            </span>
+                          </Space>
                         </div>
                         <span className={styles.previewItemSecondary}>
                           {fieldNames ||
@@ -370,18 +622,25 @@ export function SpecReviewStep({
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  No persistent entities are planned yet. That can still be fine
-                  for a small client-side app.
+                  No persistent entities are planned yet.
                 </p>
               )}
             </div>
 
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
+                <MonitorIcon size={16} color="#2dd4a8" />
                 <h4 className={styles.previewSectionTitle}>Pages</h4>
-                <span className={styles.previewSectionHint}>
-                  Routes the user can visit
-                </span>
+                <div style={{ flex: 1 }} />
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlusIcon size={14} />}
+                  onClick={handleAddPage}
+                  style={{ color: "#2dd4a8" }}
+                >
+                  Add
+                </Button>
               </div>
               {pagePreview.length > 0 ? (
                 <div className={styles.previewList}>
@@ -394,9 +653,29 @@ export function SpecReviewStep({
                         <span className={styles.previewItemPrimary}>
                           {page.route}
                         </span>
-                        <span className={styles.previewBadge}>
-                          {page.layout}
-                        </span>
+                        <Space size={4}>
+                          <Tooltip title="Edit">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<PencilIcon size={12} />}
+                              onClick={() => handleEditPage(page)}
+                              style={{ color: "#8b95a2" }}
+                            />
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<Trash2Icon size={12} />}
+                              onClick={() => handleDeletePage(page.route)}
+                              style={{ color: "#ff4d4f" }}
+                            />
+                          </Tooltip>
+                          <span className={styles.previewBadge}>
+                            {page.layout}
+                          </span>
+                        </Space>
                       </div>
                       <span className={styles.previewItemSecondary}>
                         {page.description || `${page.name} page`}
@@ -405,19 +684,24 @@ export function SpecReviewStep({
                   ))}
                 </div>
               ) : (
-                <p className={styles.emptyState}>
-                  No pages are planned yet. The generator will struggle without
-                  a visible route map.
-                </p>
+                <p className={styles.emptyState}>No pages are planned yet.</p>
               )}
             </div>
 
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
+                <ServerIcon size={16} color="#2dd4a8" />
                 <h4 className={styles.previewSectionTitle}>API Routes</h4>
-                <span className={styles.previewSectionHint}>
-                  Server work expected
-                </span>
+                <div style={{ flex: 1 }} />
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlusIcon size={14} />}
+                  onClick={handleAddApi}
+                  style={{ color: "#2dd4a8" }}
+                >
+                  Add
+                </Button>
               </div>
               {apiPreview.length > 0 ? (
                 <div className={styles.previewList}>
@@ -430,9 +714,29 @@ export function SpecReviewStep({
                         <span className={styles.previewItemPrimary}>
                           {route.method} {route.path}
                         </span>
-                        <span className={styles.previewBadge}>
-                          {route.auth ? "auth" : "public"}
-                        </span>
+                        <Space size={4}>
+                          <Tooltip title="Edit">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<PencilIcon size={12} />}
+                              onClick={() => handleEditApi(route)}
+                              style={{ color: "#8b95a2" }}
+                            />
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<Trash2Icon size={12} />}
+                              onClick={() => handleDeleteApi(route.method, route.path)}
+                              style={{ color: "#ff4d4f" }}
+                            />
+                          </Tooltip>
+                          <span className={styles.previewBadge}>
+                            {route.auth ? "auth" : "public"}
+                          </span>
+                        </Space>
                       </div>
                       <span className={styles.previewItemSecondary}>
                         {route.description || "Recovered from the README plan."}
@@ -441,19 +745,14 @@ export function SpecReviewStep({
                   ))}
                 </div>
               ) : (
-                <p className={styles.emptyState}>
-                  No backend API routes are planned. For a local-only app, that
-                  is completely okay.
-                </p>
+                <p className={styles.emptyState}>No backend API routes.</p>
               )}
             </div>
 
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
+                <RocketIcon size={16} color="#2dd4a8" />
                 <h4 className={styles.previewSectionTitle}>Packages</h4>
-                <span className={styles.previewSectionHint}>
-                  New additions beyond the scaffold
-                </span>
               </div>
               {packagePreview.length > 0 ? (
                 <div className={styles.previewList}>
@@ -478,10 +777,7 @@ export function SpecReviewStep({
                   ))}
                 </div>
               ) : (
-                <p className={styles.emptyState}>
-                  No package additions are currently planned. The base scaffold
-                  should be enough.
-                </p>
+                <p className={styles.emptyState}>No package additions.</p>
               )}
             </div>
           </div>
@@ -518,6 +814,125 @@ export function SpecReviewStep({
           Approve & Generate
         </button>
       </div>
+
+      {/* ─── Entity Modal ─────────────────────────────────────────────────── */}
+      <Modal
+        title={editingEntity ? "Edit Entity" : "Add Entity"}
+        open={entityModalVisible}
+        onOk={handleEntityModalOk}
+        onCancel={() => setEntityModalVisible(false)}
+        width={700}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="name" label="Entity Name" rules={[{ required: true }]}>
+            <Input placeholder="User, Project, Ticket..." />
+          </Form.Item>
+          <Divider>Fields</Divider>
+          <Form.List name="fields">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                    <Form.Item
+                      {...restField}
+                      name={[name, "name"]}
+                      rules={[{ required: true, message: "Missing name" }]}
+                    >
+                      <Input placeholder="Field Name" />
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, "type"]}
+                      rules={[{ required: true, message: "Missing type" }]}
+                    >
+                      <Select style={{ width: 120 }}>
+                        <Select.Option value="string">String</Select.Option>
+                        <Select.Option value="int">Integer</Select.Option>
+                        <Select.Option value="float">Float</Select.Option>
+                        <Select.Option value="boolean">Boolean</Select.Option>
+                        <Select.Option value="datetime">DateTime</Select.Option>
+                        <Select.Option value="enum">Enum</Select.Option>
+                      </Select>
+                    </Form.Item>
+                    <Form.Item {...restField} name={[name, "required"]} valuePropName="checked">
+                      <Checkbox>Required</Checkbox>
+                    </Form.Item>
+                    <Trash2Icon
+                      size={16}
+                      onClick={() => remove(name)}
+                      style={{ cursor: "pointer", color: "#ff4d4f" }}
+                    />
+                  </Space>
+                ))}
+                <Button type="dashed" onClick={() => add()} block icon={<PlusIcon size={14} />}>
+                  Add Field
+                </Button>
+              </>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+
+      {/* ─── Page Modal ───────────────────────────────────────────────────── */}
+      <Modal
+        title={editingPage ? "Edit Page" : "Add Page"}
+        open={pageModalVisible}
+        onOk={handlePageModalOk}
+        onCancel={() => setPageModalVisible(false)}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="route" label="Route" rules={[{ required: true }]}>
+            <Input placeholder="/dashboard, /settings, /projects/:id..." />
+          </Form.Item>
+          <Form.Item name="name" label="Page Name" rules={[{ required: true }]}>
+            <Input placeholder="Dashboard, Settings, ProjectDetails..." />
+          </Form.Item>
+          <Form.Item name="layout" label="Layout" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value="authenticated">Authenticated (Navbar + Sidebar)</Select.Option>
+              <Select.Option value="public">Public (Landing Page style)</Select.Option>
+              <Select.Option value="admin">Admin (Restricted access)</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="User profile management page..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ─── API Modal ────────────────────────────────────────────────────── */}
+      <Modal
+        title={editingApi ? "Edit API Route" : "Add API Route"}
+        open={apiModalVisible}
+        onOk={handleApiModalOk}
+        onCancel={() => setApiModalVisible(false)}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Space>
+            <Form.Item name="method" label="Method" rules={[{ required: true }]}>
+              <Select style={{ width: 100 }}>
+                <Select.Option value="GET">GET</Select.Option>
+                <Select.Option value="POST">POST</Select.Option>
+                <Select.Option value="PUT">PUT</Select.Option>
+                <Select.Option value="PATCH">PATCH</Select.Option>
+                <Select.Option value="DELETE">DELETE</Select.Option>
+              </Select>
+            </Form.Item>
+            <Form.Item name="path" label="Path" rules={[{ required: true }]}>
+              <Input placeholder="/api/projects, /api/tasks/:id..." style={{ width: 300 }} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="auth" label="Authentication" valuePropName="checked">
+            <Checkbox>Requires authenticated user</Checkbox>
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="Retrieve list of projects for the current user..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -601,7 +601,27 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     public async Task<CodeGenSessionDto> SaveSpec(SaveSpecInput input)
     {
         var session = await LoadSession(input.SessionId);
-        session.SpecJson = JsonSerializer.Serialize(input.Spec, JsonOptions);
+
+        // Analysis results (spec) are now part of a larger ReadmeResultDto package.
+        // We must preserve the ReadmeMarkdown and Summary by updating only the Plan.
+        var readmePackage = DeserializeOrDefault<ReadmeResultDto>(session.SpecJson);
+        if (readmePackage == null || string.IsNullOrWhiteSpace(readmePackage.ReadmeMarkdown))
+        {
+            // If we can't find a ReadmePackage, see if it's a raw AppSpecDto
+            var rawSpec = DeserializeOrDefault<AppSpecDto>(session.SpecJson);
+            readmePackage = new ReadmeResultDto 
+            {
+                Plan = input.Spec ?? rawSpec ?? new AppSpecDto(),
+                ReadmeMarkdown = "Generated Spec (README not found)",
+                Summary = "Recovered from partial session data."
+            };
+        }
+        else
+        {
+            readmePackage.Plan = input.Spec;
+        }
+
+        session.SpecJson = JsonSerializer.Serialize(readmePackage, JsonOptions);
         session.UpdatedAt = DateTime.UtcNow;
         await SaveSession(session);
         return MapSessionToDto(session);
@@ -1648,8 +1668,11 @@ Return your response in the following format:
         var session = await LoadSession(sessionId);
         var readmePackage = LoadStoredReadmePackage(session.SpecJson);
 
-        if (string.IsNullOrWhiteSpace(readmePackage?.ReadmeMarkdown) || !HasUsableSpec(readmePackage.Plan))
-            throw new UserFriendlyException("Generate the reviewed README and implementation plan before continuing.");
+        if (string.IsNullOrWhiteSpace(readmePackage?.ReadmeMarkdown))
+            throw new UserFriendlyException("No README available for this session. Please go back to the blueprint step and regenerate it.");
+
+        if (!HasUsableSpec(readmePackage.Plan))
+            throw new UserFriendlyException("The implementation plan is empty or invalid. Please review the specification before generating.");
 
         session.SpecConfirmedAt = DateTime.UtcNow;
         session.Status = (int)CodeGenStatus.SpecConfirmed;

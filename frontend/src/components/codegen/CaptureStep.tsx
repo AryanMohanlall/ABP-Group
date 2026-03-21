@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, Tag, Spin, message, Switch } from "antd";
-import { SparklesIcon, PlusIcon, ArrowRightIcon, EyeIcon, EyeOffIcon } from "lucide-react";
+import { SparklesIcon, PlusIcon, ArrowRightIcon, EyeIcon, EyeOffIcon, PencilIcon, LockIcon, GlobeIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import { ICodeGenSession } from "@/providers/codegen-provider";
@@ -25,6 +25,14 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
   const [newFeature, setNewFeature] = useState("");
   const [newEntity, setNewEntity] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+
+  // Edit states
+  const [editingFeatureIndex, setEditingFeatureIndex] = useState<number | null>(null);
+  const [editingFeatureValue, setEditingFeatureValue] = useState("");
+  const [editingEntityIndex, setEditingEntityIndex] = useState<number | null>(null);
+  const [editingEntityValue, setEditingEntityValue] = useState("");
+
+  const editInputRef = useState<any>(null)[0]; // Placeholder for ref logic or use a simple id
 
   const maxChars = 100000;
   const remaining = maxChars - prompt.length;
@@ -58,6 +66,21 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
     setFeatures((prev) => prev.filter((f) => f !== feature));
   };
 
+  const startEditFeature = (index: number, value: string) => {
+    setEditingFeatureIndex(index);
+    setEditingFeatureValue(value);
+  };
+
+  const saveEditFeature = () => {
+    if (editingFeatureIndex !== null) {
+      const newFeatures = [...features];
+      newFeatures[editingFeatureIndex] = editingFeatureValue.trim() || features[editingFeatureIndex];
+      setFeatures(newFeatures);
+      setEditingFeatureIndex(null);
+      setEditingFeatureValue("");
+    }
+  };
+
   const addEntity = () => {
     const trimmed = newEntity.trim();
     if (trimmed && !entities.includes(trimmed)) {
@@ -68,6 +91,21 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
 
   const removeEntity = (entity: string) => {
     setEntities((prev) => prev.filter((e) => e !== entity));
+  };
+
+  const startEditEntity = (index: number, value: string) => {
+    setEditingEntityIndex(index);
+    setEditingEntityValue(value);
+  };
+
+  const saveEditEntity = () => {
+    if (editingEntityIndex !== null) {
+      const newEntities = [...entities];
+      newEntities[editingEntityIndex] = editingEntityValue.trim() || entities[editingEntityIndex];
+      setEntities(newEntities);
+      setEditingEntityIndex(null);
+      setEditingEntityValue("");
+    }
   };
 
   const handleNext = () => {
@@ -92,11 +130,10 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
       </div>
 
       <textarea
-        className={styles.textarea}
+        className={cx(styles.textarea, analyzed && styles.textareaAnalyzed)}
         value={prompt}
         onChange={(e) => setPrompt(e.target.value.slice(0, maxChars))}
         placeholder="I want to build a project management app with kanban boards, user authentication, team workspaces, and real-time notifications..."
-        disabled={analyzed}
       />
       <div className={cx(styles.counter, remaining < 200 && styles.counterWarning)}>
         {remaining.toLocaleString()} characters remaining
@@ -127,60 +164,120 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h3 className={styles.resultTitle}>Analysis Complete</h3>
+          <h3 className={styles.resultTitle}>Analyses Complete</h3>
           <p className={styles.resultSubtitle}>
-            Review the detected features and entities below. You can add or remove items.
+            Review the detected features and entities below. You can refine the project name, description, or manage items.
           </p>
 
           <div className={styles.projectName}>
             <SparklesIcon className={styles.iconSmall} />
-            Suggested project name: <strong>{projectName}</strong>
+            <span style={{ whiteSpace: "nowrap" }}>Suggested project name:</span>
+            <div className={cx(styles.projectNameInput, "flex-1")} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+              <Input
+                variant="borderless"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                style={{ padding: "4px 8px" }}
+              />
+              <PencilIcon size={14} style={{ color: "rgba(45, 212, 168, 0.6)", flexShrink: 0 }} />
+            </div>
           </div>
 
           <div className={styles.sectionLabel}>Detected Features</div>
           <div className={styles.tagRow}>
-            {features.map((feature) => (
-              <Tag
-                key={feature}
-                closable
-                onClose={() => removeFeature(feature)}
-                color="processing"
-              >
-                {feature}
-              </Tag>
-            ))}
+            {features.map((feature, idx) => {
+              if (editingFeatureIndex === idx) {
+                return (
+                  <div key={`edit-feature-${idx}`} className={styles.tagInput}>
+                    <Input
+                      size="small"
+                      autoFocus
+                      value={editingFeatureValue}
+                      onChange={(e) => setEditingFeatureValue(e.target.value)}
+                      onBlur={saveEditFeature}
+                      onPressEnter={saveEditFeature}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <Tag
+                  key={`${feature}-${idx}`}
+                  closable
+                  onClose={() => removeFeature(feature)}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => startEditFeature(idx, feature)}
+                >
+                  {feature}
+                </Tag>
+              );
+            })}
           </div>
           <div className={styles.addInput}>
             <Input
               size="small"
-              placeholder="Add a feature..."
+              placeholder="Add a feature (e.g. User Auth, Notifications)..."
               value={newFeature}
               onChange={(e) => setNewFeature(e.target.value)}
               onPressEnter={addFeature}
             />
-            <Button size="small" icon={<PlusIcon size={14} />} onClick={addFeature}>
+            <Button
+              size="small"
+              icon={<PlusIcon size={14} />}
+              onClick={addFeature}
+              type="text"
+              style={{ color: "#8b95a2" }}
+            >
               Add
             </Button>
           </div>
 
           <div style={{ marginTop: 24 }}>
             <div className={styles.sectionLabel}>Detected Entities</div>
-            <div className={styles.entityList}>
-              {entities.map((entity) => (
-                <Tag key={entity} closable onClose={() => removeEntity(entity)}>
-                  {entity}
-                </Tag>
-              ))}
+            <div className={styles.tagRow}>
+              {entities.map((entity, idx) => {
+                if (editingEntityIndex === idx) {
+                  return (
+                    <div key={`edit-entity-${idx}`} className={styles.tagInput}>
+                      <Input
+                        size="small"
+                        autoFocus
+                        value={editingEntityValue}
+                        onChange={(e) => setEditingEntityValue(e.target.value)}
+                        onBlur={saveEditEntity}
+                        onPressEnter={saveEditEntity}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <Tag
+                    key={`${entity}-${idx}`}
+                    closable
+                    onClose={() => removeEntity(entity)}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => startEditEntity(idx, entity)}
+                  >
+                    {entity}
+                  </Tag>
+                );
+              })}
             </div>
             <div className={styles.addInput}>
               <Input
                 size="small"
-                placeholder="Add an entity..."
+                placeholder="Add an entity (e.g. Project, Task, User)..."
                 value={newEntity}
                 onChange={(e) => setNewEntity(e.target.value)}
                 onPressEnter={addEntity}
               />
-              <Button size="small" icon={<PlusIcon size={14} />} onClick={addEntity}>
+              <Button
+                size="small"
+                icon={<PlusIcon size={14} />}
+                onClick={addEntity}
+                type="text"
+                style={{ color: "#8b95a2" }}
+              >
                 Add
               </Button>
             </div>
@@ -188,16 +285,45 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
 
           <div style={{ marginTop: 24 }}>
             <div className={styles.sectionLabel}>Project Visibility</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-              <Switch
-                checked={isPublic}
-                onChange={setIsPublic}
-                checkedChildren={<EyeIcon size={14} />}
-                unCheckedChildren={<EyeOffIcon size={14} />}
-              />
-              <span style={{ fontSize: 14, color: "var(--ant-color-text-secondary)" }}>
-                {isPublic ? "Public - Anyone can view this project" : "Private - Only you can view this project"}
-              </span>
+            <div className={styles.visibilityGrid}>
+              <button
+                type="button"
+                className={cx(
+                  styles.visibilityCard,
+                  !isPublic && styles.visibilityCardSelected
+                )}
+                onClick={() => setIsPublic(false)}
+              >
+                <LockIcon
+                  className={cx(
+                    styles.visibilityIcon,
+                    !isPublic && styles.visibilityIconSelected
+                  )}
+                />
+                <span className={styles.visibilityLabel}>Private</span>
+                <span className={styles.visibilityDesc}>
+                  Only you and your team can view this project.
+                </span>
+              </button>
+              <button
+                type="button"
+                className={cx(
+                  styles.visibilityCard,
+                  isPublic && styles.visibilityCardSelected
+                )}
+                onClick={() => setIsPublic(true)}
+              >
+                <GlobeIcon
+                  className={cx(
+                    styles.visibilityIcon,
+                    isPublic && styles.visibilityIconSelected
+                  )}
+                />
+                <span className={styles.visibilityLabel}>Public</span>
+                <span className={styles.visibilityDesc}>
+                  Anyone with the link can view this project.
+                </span>
+              </button>
             </div>
           </div>
 

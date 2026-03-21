@@ -54,8 +54,16 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
         {
             b.ToTable("CodeGenSessions");
             b.HasKey(x => x.Id);
-            b.Property(x => x.Prompt).HasMaxLength(10000);
-            b.Property(x => x.NormalizedRequirement).HasMaxLength(10000);
+            b.Property(x => x.Prompt).HasColumnType("text");
+            b.Property(x => x.NormalizedRequirement).HasColumnType("text");
+            b.Property(x => x.DetectedFeaturesJson).HasColumnType("text");
+            b.Property(x => x.DetectedEntitiesJson).HasColumnType("text");
+            b.Property(x => x.ConfirmedStackJson).HasColumnType("text");
+            b.Property(x => x.SpecJson).HasColumnType("text");
+            b.Property(x => x.ValidationResultsJson).HasColumnType("text");
+            b.Property(x => x.GeneratedFilesJson).HasColumnType("text");
+            b.Property(x => x.CompletedStepsJson).HasColumnType("text");
+            b.Property(x => x.RefinementHistoryJson).HasColumnType("text");
             b.Property(x => x.ProjectName).HasMaxLength(128);
             b.Property(x => x.ScaffoldTemplate).HasMaxLength(256);
             b.Property(x => x.CurrentPhase).HasMaxLength(128);

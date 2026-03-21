@@ -11,7 +11,6 @@ import { useStyles } from "./StackStep.styles";
 
 export interface ExtraConfig {
   templateId: number | null;
-  projectCategory: string;
 }
 
 interface StackStepProps {
@@ -59,13 +58,6 @@ const STACK_CATEGORIES: StackCategory[] = [
   },
 ];
 
-const EXTRA_CATEGORIES = [
-  {
-    key: "projectCategory",
-    label: "Project Category",
-    options: ["SaaS dashboard", "E-commerce store", "Blog platform", "Portfolio site", "General"],
-  },
-];
 
 export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
   const { styles, cx } = useStyles();
@@ -83,9 +75,6 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     auth: "",
   });
   
-  const [extraSelections, setExtraSelections] = useState<Record<string, string>>({
-    projectCategory: "SaaS dashboard",
-  });
   
   const [templateId, setTemplateId] = useState<number | null>(null);
 
@@ -141,15 +130,13 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
       await saveStack(sessionId, stack);
       onNext(stack, {
         templateId,
-        projectCategory: extraSelections.projectCategory,
       });
     } catch {
       message.error("Failed to save stack configuration.");
     }
   };
 
-  const allSelected = STACK_CATEGORIES.every((cat) => selections[cat.key]) && 
-                      EXTRA_CATEGORIES.every((cat) => extraSelections[cat.key]);
+  const allSelected = STACK_CATEGORIES.every((cat) => selections[cat.key]);
 
   if (!loaded) {
     return (
@@ -288,36 +275,6 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
           </div>
         ))}
 
-        <div className={styles.divider} />
-
-        {EXTRA_CATEGORIES.map((category) => (
-          <div key={category.key}>
-            <div className={styles.sectionLabel}>{category.label}</div>
-            <div className={styles.selectionGrid}>
-              {category.options.map((option) => {
-                const isSelected = extraSelections[category.key] === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    className={cx(
-                      styles.selectionCard,
-                      isSelected
-                        ? styles.selectionCardSelected
-                        : styles.selectionCardDefault
-                    )}
-                    onClick={() => handleExtraSelect(category.key, option)}
-                  >
-                    {isSelected && (
-                      <CheckIcon className={styles.selectionCheck} size={16} />
-                    )}
-                    <span className={styles.selectionLabel}>{option}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
       </motion.div>
 
       <div className={styles.actionRow}>
