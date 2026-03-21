@@ -1,154 +1,122 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   container: css`
-    max-width: ${token.paddingXL * 34}px;
-    margin: 0 auto;
-  `,
-  header: css`
-    text-align: center;
-    margin-bottom: ${token.marginXL * 1.5}px;
-  `,
-  headerIcon: css`
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 64px;
-    height: 64px;
-    border-radius: ${token.borderRadiusLG * 2}px;
-    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, ${token.colorBgContainer} 100%);
-    color: ${token.colorPrimary};
-    margin-bottom: ${token.marginLG}px;
-  `,
-  title: css`
-    font-size: ${token.fontSizeXL * 1.4}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
-    letter-spacing: -0.02em;
-  `,
-  subtitle: css`
-    color: ${token.colorTextSecondary};
-    margin: 0;
-    line-height: 1.7;
-    font-size: ${token.fontSizeLG}px;
-  `,
-  loadingWrap: css`
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: ${token.paddingXL * 4}px;
-    gap: ${token.marginXL}px;
+    gap: 32px;
+    font-family: 'Inter', sans-serif;
   `,
-  loadingText: css`
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeLG}px;
-  `,
-  summaryCard: css`
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 2}px;
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-    margin-bottom: ${token.marginLG}px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  `,
-  summaryTitle: css`
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
-  `,
-  summaryText: css`
-    color: ${token.colorTextSecondary};
-    line-height: 1.7;
-    margin: 0;
-  `,
-  readmeCard: css`
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    border-radius: ${token.borderRadiusLG * 2}px;
+  section: css`
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    margin-bottom: ${token.marginLG}px;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
   `,
-  readmeHeader: css`
+  sectionHeader: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-    border-bottom: 1px solid ${token.colorBorder};
-    background: ${token.colorFillQuaternary};
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-  `,
-  readmeContent: css`
-    padding: ${token.paddingXL}px;
-    max-height: 600px;
-    overflow-y: auto;
-  `,
-  readmePre: css`
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-family: ${token.fontFamilyCode};
-    font-size: ${token.fontSize}px;
-    line-height: 1.7;
-    color: ${token.colorText};
-    margin: 0;
-  `,
-  actionRow: css`
-    display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-top: ${token.marginXL * 1.5}px;
-    padding-top: ${token.paddingXL}px;
-    border-top: 1px solid ${token.colorBorder};
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 14px;
   `,
-  backButton: css`
-    display: inline-flex;
+  sectionTitle: css`
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+  `,
+  sectionBody: css`
+    padding: 20px;
+  `,
+  reviewContainer: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  `,
+  reviewItem: css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `,
+  reviewLabel: css`
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'Inter', sans-serif;
+  `,
+  reviewValue: css`
+    font-size: 14px;
+    color: #94A3B8;
+    font-family: 'Inter', sans-serif;
+    background: rgba(15, 17, 21, 0.8);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 12px;
+    border-radius: 12px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+  `,
+  actions: css`
+    display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM}px 0;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorTextSecondary};
-    background: transparent;
-    border: none;
+    gap: 12px;
+    flex-wrap: wrap;
+  `,
+  actionButton: css`
+    padding: 10px 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: color 0.2s ease;
-    font-size: ${token.fontSize}px;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    backdrop-filter: blur(16px);
 
     &:hover {
-      color: ${token.colorText};
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(247,147,26,0.5);
+      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
     }
   `,
-  confirmButton: css`
-    display: inline-flex;
-    align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM * 1.75}px ${token.paddingXL * 1.25}px;
-    border-radius: ${token.borderRadiusLG * 2}px;
+  primaryAction: css`
+    padding: 10px 20px;
     border: none;
-    background: linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%);
-    color: ${token.colorBgContainer};
-    font-weight: ${token.fontWeightStrong};
-    font-size: ${token.fontSizeLG}px;
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
-    letter-spacing: 0.01em;
+    transition: all 0.2s ease;
+    border-radius: 9999px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
 
-    &:hover:not(:disabled) {
+    &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 2px 4px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
     }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+  `,
+  focusRing: css`
+    &:focus-visible {
+      outline: 2px solid #F7931A;
+      outline-offset: 2px;
     }
   `,
 }));

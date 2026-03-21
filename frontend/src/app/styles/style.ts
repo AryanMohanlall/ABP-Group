@@ -1,52 +1,38 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   page: css`
     min-height: 100vh;
-    background: linear-gradient(
-      160deg,
-      ${token.colorBgLayout} 0%,
-      ${token.colorBgContainer} 100%
-    );
-    color: ${token.colorText};
-    font-family: ${token.fontFamily};
+    background: #030304;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
     position: relative;
     overflow: hidden;
-    opacity: 0;
-    transition: opacity 0.5s ease;
   `,
   pageMounted: css`
     opacity: 1;
   `,
   bgOrbPrimary: css`
     position: absolute;
-    width: ${token.paddingXL * 12}px;
-    height: ${token.paddingXL * 12}px;
+    width: 600px;
+    height: 600px;
     border-radius: 50%;
-    background: radial-gradient(
-      circle,
-      ${token.colorPrimary} 0%,
-      transparent 70%
-    );
-    opacity: 0.12;
-    top: -${token.paddingXL * 6}px;
-    right: -${token.paddingXL * 4}px;
+    background: radial-gradient(circle, rgba(247,147,26,0.15) 0%, transparent 70%);
+    top: -200px;
+    right: -200px;
     pointer-events: none;
+    animation: float 8s ease-in-out infinite;
   `,
   bgOrbSecondary: css`
     position: absolute;
-    width: ${token.paddingXL * 14}px;
-    height: ${token.paddingXL * 14}px;
+    width: 800px;
+    height: 800px;
     border-radius: 50%;
-    background: radial-gradient(
-      circle,
-      #8b5cf6 0%,
-      transparent 70%
-    );
-    opacity: 0.28;
-    bottom: -${token.paddingXL * 7}px;
-    left: -${token.paddingXL * 6}px;
+    background: radial-gradient(circle, rgba(255,214,0,0.1) 0%, transparent 70%);
+    bottom: -400px;
+    left: -400px;
     pointer-events: none;
+    animation: float 10s ease-in-out infinite reverse;
   `,
   nav: css`
     position: sticky;
@@ -55,188 +41,269 @@ export const useStyles = createStyles(({ token, css }) => ({
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: ${token.paddingLG}px ${token.paddingXL}px;
-    background: ${token.colorBgElevated};
-    border-bottom: 1px solid ${token.colorBorder};
-    backdrop-filter: blur(${token.padding}px);
+    padding: 16px 32px;
+    background: rgba(3, 3, 4, 0.8);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(16px);
   `,
   logo: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    font-weight: ${token.fontWeightStrong};
-    font-size: ${token.fontSizeLG}px;
-    color: ${token.colorText};
+    gap: 12px;
+    font-weight: 600;
+    font-size: 20px;
+    color: #ffffff;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   logoImage: css`
-    width: ${token.paddingXL}px;
-    height: ${token.paddingXL}px;
+    width: 32px;
+    height: 32px;
     object-fit: contain;
   `,
   logoImageSmall: css`
-    width: ${token.paddingLG}px;
-    height: ${token.paddingLG}px;
+    width: 24px;
+    height: 24px;
     object-fit: contain;
   `,
   navActions: css`
     display: flex;
     align-items: center;
-    gap: ${token.margin}px;
+    gap: 12px;
   `,
   signInBtn: css`
-    color: ${token.colorTextSecondary};
-    font-weight: ${token.fontWeightStrong};
+    color: #94A3B8;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+
+    &:hover {
+      color: #ffffff;
+      border-color: rgba(247,147,26,0.5);
+      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+    }
   `,
   ctaBtn: css`
-    border-radius: ${token.borderRadiusLG}px;
-    font-weight: ${token.fontWeightStrong};
-    box-shadow: ${token.boxShadowSecondary};
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 9999px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+    }
   `,
   hero: css`
-    padding: ${token.paddingXL * 3}px ${token.paddingXL}px ${token.paddingXL * 2}px;
+    padding: 96px 32px 64px;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: ${token.marginLG}px;
+    gap: 24px;
   `,
   heroPill: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 8px 20px;
+    background: rgba(15, 17, 21, 0.8);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94A3B8;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 9999px;
+    backdrop-filter: blur(16px);
   `,
   heroTitle: css`
     margin: 0;
-    font-size: ${token.fontSizeXL * 2}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-  `,
-  heroHighlight: css`
-    background: linear-gradient(
-      120deg,
-      ${token.colorPrimary},
-      #a855f7,
-      ${token.colorWarning}
-    );
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    font-weight: 600;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    background: linear-gradient(to right, #F7931A, #FFD600);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    font-family: 'Space Grotesk', sans-serif;
+  `,
+  heroHighlight: css`
+    color: #F7931A;
+    text-shadow: 0 0 30px rgba(247,147,26,0.5);
   `,
   heroSubtitle: css`
-    max-width: ${token.paddingXL * 16}px;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeLG}px;
+    max-width: 600px;
+    color: #94A3B8;
+    font-size: 18px;
     line-height: 1.7;
     margin: 0;
+    font-family: 'Inter', sans-serif;
   `,
   promptCard: css`
     width: 100%;
-    max-width: ${token.paddingXL * 18}px;
-    border-radius: ${token.borderRadiusLG}px;
-    box-shadow: ${token.boxShadow};
-    border: 1px solid ${token.colorBorder};
+    max-width: 700px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
   `,
   promptInput: css`
-    font-family: ${token.fontFamily};
+    font-family: 'Inter', sans-serif;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 16px;
+
+    &:focus {
+      outline: none;
+      box-shadow: none;
+    }
+
+    &::placeholder {
+      color: #94A3B8;
+    }
   `,
   promptFooter: css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: ${token.margin}px;
-    gap: ${token.margin}px;
+    margin-top: 12px;
+    gap: 12px;
+    padding: 12px 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
   `,
   promptLabel: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 12px;
+    color: #94A3B8;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   `,
   generateBtn: css`
-    border-radius: ${token.borderRadiusLG}px;
-    font-weight: ${token.fontWeightStrong};
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 9999px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+    }
   `,
   section: css`
-    padding: ${token.paddingXL * 2}px ${token.paddingXL}px;
+    padding: 64px 32px;
   `,
   sectionTitle: css`
     text-align: center;
-    font-size: ${token.fontSizeXL * 1.5}px;
-    font-weight: ${token.fontWeightStrong};
-    margin-bottom: ${token.margin}px;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #ffffff;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   sectionHighlight: css`
-    color: ${token.colorPrimary};
+    color: #F7931A;
+    text-shadow: 0 0 20px rgba(247,147,26,0.5);
   `,
   sectionSubtitle: css`
     text-align: center;
-    color: ${token.colorTextSecondary};
-    max-width: ${token.paddingXL * 15}px;
-    margin: 0 auto ${token.marginXL}px;
-    font-size: ${token.fontSizeLG}px;
+    color: #94A3B8;
+    max-width: 600px;
+    margin: 0 auto 48px;
+    font-size: 18px;
     line-height: 1.7;
+    font-family: 'Inter', sans-serif;
   `,
   featureGrid: css`
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(${token.paddingXL * 6}px, 1fr));
-    gap: ${token.marginLG}px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
   `,
   featureCard: css`
-    border-radius: ${token.borderRadiusLG}px;
-    box-shadow: ${token.boxShadowSecondary};
-    border: 1px solid ${token.colorBorder};
-    animation: fadeUp 0.6s ease both;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
+    padding: 32px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
 
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(${token.paddingLG}px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+    &:hover {
+      transform: translateY(-4px);
+      border-color: rgba(247,147,26,0.3);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.3);
     }
   `,
   featureCard0: css`
-    animation-delay: 0.05s;
+    animation-delay: 0s;
   `,
   featureCard1: css`
-    animation-delay: 0.15s;
+    animation-delay: 0.1s;
   `,
   featureCard2: css`
-    animation-delay: 0.25s;
+    animation-delay: 0.2s;
   `,
   featureCard3: css`
-    animation-delay: 0.35s;
+    animation-delay: 0.3s;
   `,
   featureIcon: css`
-    width: ${token.paddingXL}px;
-    height: ${token.paddingXL}px;
-    border-radius: ${token.borderRadius}px;
-    background: ${token.colorBgLayout};
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgba(247,147,26,0.3);
+    background: rgba(247,147,26,0.1);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: ${token.margin}px;
+    margin-bottom: 16px;
+    border-radius: 12px;
   `,
   featureIconDot: css`
-    width: ${token.padding}px;
-    height: ${token.padding}px;
+    width: 16px;
+    height: 16px;
+    background: #F7931A;
     border-radius: 50%;
-    background: ${token.colorPrimary};
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.6);
   `,
   featureTitle: css`
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-    margin-bottom: ${token.marginSM}px;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   featureDesc: css`
     margin: 0;
-    color: ${token.colorTextSecondary};
+    color: #94A3B8;
     line-height: 1.6;
+    font-family: 'Inter', sans-serif;
   `,
   pipelineWrap: css`
     display: flex;
@@ -244,89 +311,102 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   pipelineCard: css`
     width: 100%;
-    max-width: ${token.paddingXL * 16}px;
-    border-radius: ${token.borderRadiusLG}px;
-    box-shadow: ${token.boxShadow};
-    border: 1px solid ${token.colorBorder};
+    max-width: 600px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
   `,
   pipelineHeader: css`
     display: flex;
     align-items: center;
-    gap: ${token.margin}px;
-    padding: ${token.padding}px ${token.paddingLG}px;
-    border-bottom: 1px solid ${token.colorBorder};
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background: linear-gradient(135deg, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 14px;
   `,
   pipelineDots: css`
     display: flex;
-    gap: ${token.marginSM}px;
+    gap: 8px;
   `,
   pipelineDot: css`
-    width: ${token.paddingSM}px;
-    height: ${token.paddingSM}px;
+    width: 12px;
+    height: 12px;
+    background: rgba(255,255,255,0.3);
     border-radius: 50%;
-    background: ${token.colorBorder};
   `,
   pipelineTitle: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
   `,
   pipelineBody: css`
-    padding: ${token.paddingLG}px;
+    padding: 24px;
     display: grid;
-    gap: ${token.marginSM}px;
+    gap: 16px;
   `,
   pipelineStep: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM}px 0;
-    font-size: ${token.fontSize}px;
+    gap: 12px;
+    padding: 12px 0;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
   `,
   stepdone: css`
-    color: ${token.colorText};
+    color: #22C55E;
   `,
   steprunning: css`
-    color: ${token.colorPrimary};
+    color: #FFD600;
   `,
   steppending: css`
-    color: ${token.colorTextSecondary};
+    color: #94A3B8;
   `,
   stepLabel: css`
     flex: 1;
   `,
   stepRight: css`
-    font-size: ${token.fontSizeSM}px;
+    font-size: 12px;
+    color: #94A3B8;
+    font-family: 'Inter', sans-serif;
   `,
   stepIconDone: css`
-    color: ${token.colorSuccess};
+    color: #22C55E;
   `,
   stepIconRunning: css`
-    color: ${token.colorPrimary};
-    animation: spin 1s linear infinite;
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
+    color: #FFD600;
+    animation: pulse 2s ease-in-out infinite;
   `,
   stepIconPending: css`
-    color: ${token.colorBorder};
+    color: #1E293B;
   `,
   footer: css`
-    padding: ${token.paddingLG}px ${token.paddingXL}px ${token.paddingXL}px;
+    padding: 24px 32px 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-top: 1px solid ${token.colorBorder};
+    border-top: 1px solid rgba(255,255,255,0.1);
   `,
   footerLogo: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
-    font-weight: ${token.fontWeightStrong};
+    gap: 12px;
+    font-weight: 600;
+    color: #F7931A;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   footerText: css`
-    color: ${token.colorTextSecondary};
+    color: #94A3B8;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
   `,
 }));

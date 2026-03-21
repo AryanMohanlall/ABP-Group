@@ -1,120 +1,149 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   page: css`
-    min-height: 100vh;
-    padding: ${token.paddingXL}px;
-    background: ${token.colorBgLayout};
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: 'Inter', sans-serif;
   `,
-  toolbar: css`
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: ${token.margin}px;
-    margin-bottom: ${token.marginLG}px;
-  `,
-  titleWrap: css`
+  header: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM / 2}px;
+    gap: 16px;
+    margin-bottom: 32px;
+
+    @media (min-width: 768px) {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
   `,
   title: css`
+    font-size: 30px;
+    font-weight: 600;
+    color: #ffffff;
     margin: 0;
-    font-size: ${token.fontSizeXL}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: linear-gradient(to right, #F7931A, #FFD600);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   subtitle: css`
+    font-size: 14px;
+    color: #94A3B8;
     margin: 0;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSize}px;
+    font-family: 'Inter', sans-serif;
   `,
-  controls: css`
+  actions: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
+    gap: 12px;
     flex-wrap: wrap;
   `,
-  search: css`
-    width: ${token.paddingXL * 10}px;
-    max-width: 100%;
+  actionButton: css`
+    padding: 10px 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    backdrop-filter: blur(16px);
+
+    &:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(247,147,26,0.5);
+      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+    }
   `,
-  stateCard: css`
-    border-radius: ${token.borderRadiusLG}px;
-    border-color: ${token.colorBorder};
-    background: ${token.colorBgContainer};
+  primaryAction: css`
+    padding: 10px 20px;
+    border: none;
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 9999px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+    }
   `,
-  stateInner: css`
-    min-height: ${token.paddingXL * 8}px;
+  content: css`
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  `,
+  section: css`
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+  `,
+  sectionHeader: css`
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 14px;
+  `,
+  sectionTitle: css`
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+  `,
+  sectionBody: css`
+    padding: 20px;
+  `,
+  emptyState: css`
+    text-align: center;
+    padding: 64px;
+    color: #94A3B8;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   `,
   grid: css`
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(${token.paddingXL * 10}px, 1fr));
-    gap: ${token.marginLG}px;
-  `,
-  templateCard: css`
-    height: 100%;
-    border-radius: ${token.borderRadiusLG}px;
-    border-color: ${token.colorBorder};
-    background: ${token.colorBgContainer};
-  `,
-  templateHeader: css`
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: ${token.marginSM}px;
-  `,
-  templateName: css`
-    margin: 0;
-    color: ${token.colorText};
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-  `,
-  description: css`
-    margin: ${token.marginSM}px 0 ${token.margin}px;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSize}px;
-    line-height: 1.5;
-    min-height: ${token.paddingXL * 2}px;
-  `,
-  metaGrid: css`
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: ${token.marginSM}px;
-    margin-bottom: ${token.margin}px;
-  `,
-  metaItem: css`
-    display: flex;
-    flex-direction: column;
-    gap: ${token.marginSM / 3}px;
-  `,
-  metaLabel: css`
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeSM}px;
-  `,
-  metaValue: css`
-    color: ${token.colorText};
-    font-size: ${token.fontSize}px;
-    font-weight: ${token.fontWeightStrong};
-  `,
-  tagsRow: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: ${token.marginSM / 2}px;
-    margin-bottom: ${token.margin}px;
-  `,
-  sourceLink: css`
-    color: ${token.colorPrimary};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    text-decoration: none;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 24px;
 
-    &:hover {
-      text-decoration: underline;
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  `,
+  focusRing: css`
+    &:focus-visible {
+      outline: 2px solid #F7931A;
+      outline-offset: 2px;
     }
   `,
 }));

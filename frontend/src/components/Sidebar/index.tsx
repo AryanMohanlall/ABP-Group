@@ -2,7 +2,6 @@
 
 import {
   FolderIcon,
-  LayoutGridIcon,
   LayoutTemplateIcon,
   SettingsIcon,
   PlusIcon,
@@ -184,7 +183,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <div className={styles.avatar}>{initials}</div>
               <div className={styles.profileTextBlock}>
                 <span className={styles.profileName}>{displayName}</span>
-                {/* <span className={styles.profileMeta}>{identityLabel}</span> */}
                 <span className={styles.roleBadge}>{rolesLabel}</span>
               </div>
             </div>

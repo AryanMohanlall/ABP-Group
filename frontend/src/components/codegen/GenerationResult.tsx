@@ -7,6 +7,7 @@ import {
   RocketIcon,
   RefreshCwIcon,
   ArrowLeftIcon,
+  SaveIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
@@ -17,18 +18,22 @@ interface GenerationResultProps {
   sessionId: string;
   status: IGenerationStatus;
   onDeploy: () => void;
+  onSaveOnly?: () => void;
   onRetry: () => void;
   onBack: () => void;
   isDeploying?: boolean;
+  isSaving?: boolean;
 }
 
 export function GenerationResult({
   sessionId,
   status,
   onDeploy,
+  onSaveOnly,
   onRetry,
   onBack,
   isDeploying = false,
+  isSaving = false,
 }: GenerationResultProps) {
   const { styles } = useStyles();
   const { isPending, session } = useCodeGenState();
@@ -170,6 +175,18 @@ export function GenerationResult({
             <ArrowLeftIcon size={16} />
             Back to Spec
           </button>
+          {!status.error && onSaveOnly && (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={onSaveOnly}
+              disabled={isSaving}
+              style={{ borderColor: '#ef4444', color: '#ef4444' }}
+            >
+              {isSaving ? <Spin size="small" /> : <SaveIcon size={16} />}
+              {isSaving ? "Saving..." : "Save to DB"}
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

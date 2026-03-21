@@ -128,5 +128,29 @@
     <text name="CreateProject">Create project</text>
     <text name="EditProject">Edit project</text>
     <text name="DeleteProject">Delete project</text>
+    <text name="Persons" value="Persons" />
+    <text name="CreatePerson" value="Create person" />
+    <text name="EditPerson" value="Edit person" />
+    <text name="DeletePerson" value="Delete person" />
+    <text name="Templates" value="Templates" />
+    <text name="CreateTemplate" value="Create template" />
+    <text name="EditTemplate" value="Edit template" />
+    <text name="DeleteTemplate" value="Delete template" />
+    <text name="GitProfiles" value="Git profiles" />
+    <text name="CreateGitProfile" value="Create git profile" />
+    <text name="EditGitProfile" value="Edit git profile" />
+    <text name="DeleteGitProfile" value="Delete git profile" />
+    <text name="ProjectRepositories" value="Project repositories" />
+    <text name="CreateProjectRepository" value="Create repository" />
+    <text name="EditProjectRepository" value="Edit repository" />
+    <text name="DeleteProjectRepository" value="Delete repository" />
+    <text name="RepositoryCommits" value="Repository commits" />
+    <text name="BuildJobs" value="Build jobs" />
+    <text name="GeneratedArtifacts" value="Generated artifacts" />
+    <text name="Deployments" value="Deployments" />
+    <text name="CreateDeployment" value="Create deployment" />
+    <text name="EditDeployment" value="Edit deployment" />
+    <text name="DeleteDeployment" value="Delete deployment" />
+    <text name="DeploymentLogs" value="Deployment logs" />
   </texts>
 </localizationDictionary>

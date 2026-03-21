@@ -56,6 +56,7 @@ NON-NEGOTIABLE RULES
 10. If environment variables are required, include the relevant .env.example or config placeholders in generated files.
 11. Do not break the scaffold's build system, linting assumptions, routing conventions, or framework version compatibility.
 12. Optimize for a WORKING APPLICATION over cleverness.
+13. If generating for Next.js, you MUST use the App Router (src/app directory structure). DO NOT output files to a legacy /pages directory.
 
 SCAFFOLD BASELINE (treat as source of truth for existing files):
 {scaffoldBaseline}

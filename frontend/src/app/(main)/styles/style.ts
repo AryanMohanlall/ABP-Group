@@ -1,13 +1,17 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   layout: css`
-    --sidebar-width: ${token.paddingXL * 6.5}px;
+    --sidebar-width: 256px;
     min-height: 100vh;
-    background: ${token.colorBgLayout};
+    background: #030304;
+    font-family: 'Inter', sans-serif;
   `,
   content: css`
-    margin-left: var(--sidebar-width, ${token.paddingXL * 6.5}px);
+    margin-left: var(--sidebar-width, 256px);
     min-height: 100vh;
+    padding: 32px;
+    background: #030304;
+    color: #ffffff;
   `,
 }));

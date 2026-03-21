@@ -1,153 +1,204 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   card: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginLG}px;
-    padding: ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    background: ${token.colorBgContainer};
-    border: 1px solid ${token.colorBorder};
-    box-shadow: ${token.boxShadowSecondary};
+    gap: 16px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    font-family: 'Inter', sans-serif;
     height: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+
+    &:hover {
+      transform: translateY(-4px);
+      border-color: rgba(247,147,26,0.3);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.3);
+    }
   `,
   header: css`
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 14px;
   `,
   title: css`
-    font-size: ${token.fontSizeLG}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: 'Space Grotesk', sans-serif;
   `,
   meta: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
-    margin: 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    margin: 4px 0 0;
+    opacity: 0.9;
   `,
   statusBadge: css`
-    padding: ${token.paddingSM / 2}px ${token.paddingSM}px;
-    border-radius: ${token.borderRadiusLG}px;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(255,255,255,0.3);
+    font-family: 'Inter', sans-serif;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(8px);
   `,
   statusDraft: css`
-    color: ${token.colorTextSecondary};
-    background: ${token.colorFillSecondary};
+    color: #ffffff;
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
   `,
   statusGenerating: css`
-    color: ${token.colorWarning};
-    background: ${token.colorWarningBg};
+    color: #FFD600;
+    border-color: rgba(255,214,0,0.5);
+    background: rgba(255,214,0,0.1);
   `,
   statusGenerated: css`
-    color: ${token.colorPrimary};
-    background: ${token.colorPrimaryBg};
+    color: #F7931A;
+    border-color: rgba(247,147,26,0.5);
+    background: rgba(247,147,26,0.1);
   `,
   statusDeploying: css`
-    color: ${token.colorWarning};
-    background: ${token.colorWarningBg};
+    color: #FFD600;
+    border-color: rgba(255,214,0,0.5);
+    background: rgba(255,214,0,0.1);
   `,
   statusLive: css`
-    color: ${token.colorSuccess};
-    background: ${token.colorSuccessBg};
+    color: #22C55E;
+    border-color: rgba(34,197,94,0.5);
+    background: rgba(34,197,94,0.1);
   `,
   statusFailed: css`
-    color: ${token.colorError};
-    background: ${token.colorErrorBg};
+    color: #EF4444;
+    border-color: rgba(239,68,68,0.5);
+    background: rgba(239,68,68,0.1);
   `,
   body: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 20px;
   `,
   updatedAt: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #94A3B8;
     margin: 0;
   `,
   url: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorPrimary};
+    font-size: 14px;
+    color: #F7931A;
     text-decoration: none;
+    transition: all 0.2s ease;
 
     &:hover {
-      text-decoration: underline;
+      color: #FFD600;
+      text-shadow: 0 0 10px rgba(247,147,26,0.5);
     }
   `,
   urlMuted: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #94A3B8;
   `,
   footer: css`
     margin-top: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: ${token.marginSM}px;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
   `,
   footerActions: css`
     display: flex;
     align-items: center;
-    gap: ${token.marginSM}px;
+    gap: 12px;
   `,
   deleteButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid ${token.colorErrorBorder};
-    background: ${token.colorErrorBg};
-    color: ${token.colorError};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 8px 16px;
+    border: 1px solid rgba(239,68,68,0.3);
+    background: rgba(239,68,68,0.1);
+    color: #EF4444;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 12px;
 
     &:hover:not(:disabled) {
-      filter: brightness(0.98);
+      background: rgba(239,68,68,0.2);
+      border-color: rgba(239,68,68,0.5);
+      box-shadow: 0 0 20px -5px rgba(239,68,68,0.3);
     }
 
     &:disabled {
       cursor: not-allowed;
-      opacity: 0.7;
+      opacity: 0.5;
     }
   `,
   viewButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
+    padding: 8px 16px;
     border: none;
-    background: ${token.colorPrimary};
-    color: ${token.colorBgContainer};
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
 
     &:hover {
-      filter: brightness(1.05);
+      transform: translateY(-1px);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
     }
 
     &:active {
-      transform: scale(0.98);
+      transform: translateY(0);
     }
   `,
   claimButton: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid #000;
-    background: #000;
-    color: #fff;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    padding: 8px 16px;
+    border: 1px solid rgba(247,147,26,0.3);
+    background: rgba(247,147,26,0.1);
+    color: #F7931A;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease;
+    transition: all 0.2s ease;
+    border-radius: 12px;
 
     &:hover {
-      filter: brightness(1.2);
+      background: rgba(247,147,26,0.2);
+      border-color: rgba(247,147,26,0.5);
+      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
     }
 
     &:active {
@@ -155,12 +206,12 @@ export const useStyles = createStyles(({ token, css }) => ({
     }
   `,
   details: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
+    font-size: 14px;
+    color: #94A3B8;
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid ${token.colorPrimary};
+      outline: 2px solid #F7931A;
       outline-offset: 2px;
     }
   `,

@@ -114,7 +114,8 @@ The JSON must have this exact structure:
 11. For dependencyPlan, ONLY add packages NOT already in the scaffold baseline
 12. Mark isExisting=true only for packages already in the scaffold
 13. Use latest stable versions compatible with the scaffold
-14. List ALL required environment variables with descriptions";
+14. List ALL required environment variables with descriptions
+15. For Next.js projects, assume the App Router (src/app). NEVER use or refer to the legacy /pages directory in validations, file manifests, or anywhere else.";
 
     /// <summary>
     /// Builds a structured implementation-plan prompt from the user's normalized requirement.
@@ -136,11 +137,21 @@ The JSON must have this exact structure:
     /// <summary>
     /// Builds a structured implementation-plan prompt from the approved README that the user reviewed.
     /// </summary>
-    public static string BuildPlanFromReadmePrompt(string readmeMarkdown, StackConfigDto stack)
+    public static string BuildPlanFromReadmePrompt(
+        string readmeMarkdown,
+        StackConfigDto stack,
+        string requirement,
+        List<string> features,
+        List<string> entities)
     {
         return BuildPrompt(
-            "Convert the approved README below into a concrete implementation plan. Treat the README as the source of truth for scope, architecture, routes, entities, dependencies, and environment variables.",
-            $"\n\nApproved README:\n{readmeMarkdown}\n\n{BuildStackContext(stack)}");
+            "Convert the approved README below into a concrete implementation plan. Treat the README as the source of truth for scope, architecture, routes, entities, dependencies, and environment variables. Use the supplemental requirement hints to recover any explicit domain nouns, user flows, or in-memory entities that the README may only describe in prose.",
+            $"\n\nApproved README:\n{readmeMarkdown}\n\n"
+            + $"Original requirement: {requirement}\n"
+            + $"Detected features: {string.Join(", ", features ?? new List<string>())}\n"
+            + $"Detected entities: {string.Join(", ", entities ?? new List<string>())}\n"
+            + "If the app is client-only or does not use a database, still include the core domain entities used in memory (for example Task, TodoItem, Note) and the pages/routes needed to operate them.\n\n"
+            + BuildStackContext(stack));
     }
 
     private static string BuildPrompt(string objective, string context)

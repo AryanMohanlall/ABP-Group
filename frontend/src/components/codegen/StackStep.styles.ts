@@ -1,249 +1,197 @@
 import { createStyles } from "antd-style";
 
-export const useStyles = createStyles(({ token, css }) => ({
+export const useStyles = createStyles(({ css }) => ({
   container: css`
-    max-width: ${token.paddingXL * 30}px;
-    margin: 0 auto;
-  `,
-  header: css`
-    text-align: center;
-    margin-bottom: ${token.marginXL * 1.5}px;
-  `,
-  title: css`
-    font-size: ${token.fontSizeXL * 1.4}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
-    margin: 0 0 ${token.marginSM}px;
-    letter-spacing: -0.02em;
-  `,
-  subtitle: css`
-    color: ${token.colorTextSecondary};
-    margin: 0;
-    line-height: 1.7;
-    font-size: ${token.fontSizeLG}px;
-  `,
-  selectionSection: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginXL * 1.5}px;
-    margin-bottom: ${token.marginXL * 1.5}px;
+    gap: 32px;
+    font-family: 'Inter', sans-serif;
   `,
-  sectionLabel: css`
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorTextSecondary};
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: ${token.marginSM}px;
+  section: css`
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
   `,
-  selectionGrid: css`
+  sectionHeader: css`
     display: flex;
-    flex-wrap: wrap;
-    gap: ${token.marginSM}px;
-  `,
-  selectionCard: css`
-    position: relative;
-    width: ${token.paddingXL * 5}px;
-    min-height: ${token.paddingXL * 2.8}px;
-    border-radius: ${token.borderRadiusLG * 2}px;
-    border: 1px solid ${token.colorBorder};
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: ${token.marginSM / 2}px;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    background: ${token.colorBgContainer};
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-  `,
-  selectionCardSelected: css`
-    border-color: ${token.colorPrimary};
-    color: ${token.colorPrimary};
-    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, rgba(255, 255, 255, 0.8) 100%);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 2px ${token.colorPrimaryBg};
-  `,
-  selectionCardDefault: css`
-    color: ${token.colorText};
-
-    &:hover {
-      border-color: ${token.colorBorderSecondary};
-      background: ${token.colorBgContainer};
-    }
-  `,
-  selectionCheck: css`
-    position: absolute;
-    top: ${token.paddingSM / 2}px;
-    right: ${token.paddingSM / 2}px;
-    color: ${token.colorPrimary};
-  `,
-  recommendedBadge: css`
-    position: absolute;
-    top: -${token.marginSM}px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 10px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorPrimary};
-    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, rgba(255, 255, 255, 0.9) 100%);
-    border: 1px solid ${token.colorPrimaryBorder};
-    padding: 2px 10px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-  `,
-  reasoning: css`
-    font-size: ${token.fontSizeSM * 0.9}px;
-    color: ${token.colorTextTertiary};
-    font-weight: normal;
-    text-align: center;
-    margin-top: 2px;
-    line-height: 1.4;
-  `,
-  selectionLabel: css`
-    text-align: center;
-  `,
-  actionRow: css`
-    display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-top: ${token.marginXL * 1.5}px;
-    padding-top: ${token.paddingXL}px;
-    border-top: 1px solid ${token.colorBorder};
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #EA580C, #F7931A);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 14px;
   `,
-  backButton: css`
-    padding: ${token.paddingSM}px 0;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorTextSecondary};
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition: color 0.2s ease;
-    font-size: ${token.fontSize}px;
-
-    &:hover {
-      color: ${token.colorText};
-    }
+  sectionTitle: css`
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
   `,
-  nextButton: css`
-    display: inline-flex;
-    align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingSM * 1.75}px ${token.paddingXL * 1.25}px;
-    border-radius: ${token.borderRadiusLG * 2}px;
-    border: none;
-    background: linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%);
-    color: ${token.colorBgContainer};
-    font-weight: ${token.fontWeightStrong};
-    font-size: ${token.fontSizeLG}px;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
-    letter-spacing: 0.01em;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 2px 4px rgba(0, 0, 0, 0.08);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+  sectionBody: css`
+    padding: 20px;
   `,
-  iconSmall: css`
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
-  `,
-  templateSection: css`
-    margin-bottom: ${token.marginXL}px;
-  `,
-  templateHint: css`
-    font-size: ${token.fontSize}px;
-    color: ${token.colorTextSecondary};
-    margin: 0 0 ${token.marginSM}px;
-    line-height: 1.5;
-  `,
-  templateGrid: css`
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: ${token.marginSM}px;
-  `,
-  templateCard: css`
-    position: relative;
+  formGroup: css`
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.paddingXL}px ${token.paddingSM}px;
-    border-radius: ${token.borderRadiusLG * 2}px;
-    border: 1px solid ${token.colorBorder};
-    background: ${token.colorBgContainer};
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    text-align: center;
-    min-height: ${token.paddingXL * 4.5}px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    gap: 8px;
+    margin-bottom: 16px;
 
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+    &:last-child {
+      margin-bottom: 0;
     }
   `,
-  templateCardSelected: css`
-    border-color: ${token.colorPrimary};
-    background: linear-gradient(135deg, ${token.colorPrimaryBg} 0%, rgba(255, 255, 255, 0.8) 100%);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 2px ${token.colorPrimaryBg};
+  label: css`
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'Inter', sans-serif;
   `,
-  templateCardDefault: css`
-    &:hover {
-      border-color: ${token.colorBorderSecondary};
-      background: ${token.colorBgContainer};
+  input: css`
+    padding: 10px 16px;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: #ffffff;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-bottom-color: #F7931A;
+      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+    }
+
+    &::placeholder {
+      color: #94A3B8;
     }
   `,
-  templateCardIcon: css`
+  textarea: css`
+    padding: 10px 16px;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: #ffffff;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    min-height: 100px;
+    resize: vertical;
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-bottom-color: #F7931A;
+      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+    }
+
+    &::placeholder {
+      color: #94A3B8;
+    }
+  `,
+  select: css`
+    padding: 10px 16px;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: #ffffff;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-bottom-color: #F7931A;
+      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+    }
+  `,
+  checkbox: css`
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    background: linear-gradient(135deg, ${token.colorBgLayout} 0%, ${token.colorFillQuaternary} 100%);
-    color: ${token.colorPrimary};
+    gap: 12px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #ffffff;
   `,
-  templateCardName: css`
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorText};
+  checkboxInput: css`
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    cursor: pointer;
+    accent-color: #F7931A;
+    border-radius: 4px;
   `,
-  templateCardDesc: css`
-    font-size: ${token.fontSizeSM * 0.9}px;
-    color: ${token.colorTextSecondary};
-    line-height: 1.4;
+  grid: css`
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 16px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  `,
+  actions: css`
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  `,
+  actionButton: css`
+    padding: 10px 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15, 17, 21, 0.8);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    backdrop-filter: blur(16px);
+
+    &:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(247,147,26,0.5);
+      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+    }
+  `,
+  primaryAction: css`
+    padding: 10px 20px;
+    border: none;
+    background: linear-gradient(to right, #EA580C, #F7931A);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 9999px;
+    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+    }
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid ${token.colorPrimary};
+      outline: 2px solid #F7931A;
       outline-offset: 2px;
     }
-  `,
-  divider: css`
-    height: 1px;
-    width: 100%;
-    background: linear-gradient(90deg, transparent 0%, ${token.colorBorder} 50%, transparent 100%);
-    margin: ${token.marginXL * 1.5}px 0;
   `,
 }));

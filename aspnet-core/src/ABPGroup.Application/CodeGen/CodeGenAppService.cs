@@ -28,6 +28,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     private readonly IRepository<Template, int> _templateRepository;
     private readonly IRepository<CodeGenSession, Guid> _sessionRepository;
     private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly IClaudeApiClient _claudeApiClient;
 
     private static readonly ConcurrentDictionary<string, CodeGenSession> InMemorySessions = new();
     private static readonly ConcurrentDictionary<Guid, byte> ActiveGenerations = new();
@@ -42,6 +43,10 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     private const int ScaffoldBaselineFileLimit = 12;
     private const int ScaffoldBaselineSnippetLength = 1200;
     private const int ScaffoldBaselineTotalLength = 12000;
+    private const string NextHomePageValidationId = "shell-next-home-page";
+    private const string ViteIndexHtmlValidationId = "shell-vite-index-html";
+    private const string RequiredLayoutValidationId = "shell-required-layout";
+    private const string StyledHomeRouteValidationId = "shell-styled-home-route";
 
     private sealed class RequirementsSnapshot
     {
@@ -63,7 +68,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         IRepository<Template, int> templateRepository)
-        : this(httpClientFactory, configuration, templateRepository, null, null)
+        : this(httpClientFactory, configuration, templateRepository, null, null, null)
     {
     }
 
@@ -72,7 +77,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         IConfiguration configuration,
         IRepository<Template, int> templateRepository,
         IRepository<CodeGenSession, Guid> sessionRepository)
-        : this(httpClientFactory, configuration, templateRepository, sessionRepository, null)
+        : this(httpClientFactory, configuration, templateRepository, sessionRepository, null, null)
     {
     }
 
@@ -81,13 +86,15 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         IConfiguration configuration,
         IRepository<Template, int> templateRepository,
         IRepository<CodeGenSession, Guid> sessionRepository,
-        IServiceScopeFactory serviceScopeFactory)
+        IServiceScopeFactory serviceScopeFactory,
+        IClaudeApiClient claudeApiClient = null)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _templateRepository = templateRepository;
         _sessionRepository = sessionRepository;
         _serviceScopeFactory = serviceScopeFactory;
+        _claudeApiClient = claudeApiClient ?? new ClaudeApiClient(httpClientFactory, configuration);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -196,7 +203,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     {
         await ReportProgress(onProgress, "[1/5] Analyzing requirements...");
         var requirementsPrompt = BuildRequirementsPrompt(input);
-        var requirementsResponse = await CallGeminiAsync(
+        var requirementsResponse = await CallAiAsync(
             "You are an expert software architect. Analyze the user's requirements and return a structured breakdown.",
             requirementsPrompt);
 
@@ -362,7 +369,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         await Task.Delay(GenerationPhaseDelayMilliseconds);
         await ReportProgress(onProgress, progressLabel);
 
-        return await CallGeminiAsync(
+        return await CallAiAsync(
             BuildCodeGenSystemPrompt(layerDescription, approvedPlan, input.Framework.ToString(), scaffoldBaseline, approvedReadme),
             BuildLayerUserPrompt(userInstruction, context, input.Prompt, approvedReadme));
     }
@@ -412,7 +419,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         string response;
         try
         {
-            response = await CallGeminiAsync(
+            response = await CallAiAsync(
                 "You are an expert software architect. Analyze the user's application idea and extract structured information. "
                 + "Return your analysis in the following delimited format:\n"
                 + "===PROJECT_NAME===\n<suggested project name>\n===END PROJECT_NAME===\n"
@@ -462,7 +469,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             var session = await LoadSession(sessionId);
 
             Logger.Debug($"RecommendStack: Calling Groq for session {sessionId}");
-            var response = await CallGeminiAsync(
+            var response = await CallAiAsync(
                 "You are an expert software architect. Based on the application requirements, recommend the best technology stack. "
                 + "Return your recommendation in the following delimited format:\n"
                 + "===FRAMEWORK===\n<framework name, e.g. Next.js, React + Vite, Angular, Vue, .NET Blazor>\n===END FRAMEWORK===\n"
@@ -553,7 +560,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                     features,
                     entities);
 
-                response = await CallGeminiAsync(
+                response = await CallAiAsync(
                     "You are an expert software architect. Generate a comprehensive application specification.",
                     plannerPrompt);
             }
@@ -653,7 +660,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         var spec = NormalizeSpec(rawSpec ?? new AppSpecDto());
         var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
         var validationRules = spec.Validations ?? new List<ValidationRuleDto>();
-        var initialValidationResults = BuildInitialValidationResults(validationRules);
+        var initialValidationResults = BuildInitialValidationResults(validationRules, stack);
 
         session.Status = (int)CodeGenStatus.Generating;
         session.GenerationStartedAt = DateTime.UtcNow;
@@ -766,7 +773,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                     sess.UpdatedAt = DateTime.UtcNow;
                     await scopedSessionRepo.UpdateAsync(sess);
 
-                    var finalValidationResults = EvaluateValidationResults(validationRules, result?.Files ?? new List<GeneratedFile>());
+                    var finalValidationResults = EvaluateValidationResults(validationRules, result?.Files ?? new List<GeneratedFile>(), stack);
                     var hasValidationFailures = finalValidationResults.Any(v => v.Status == "failed");
 
                     sess.ValidationResultsJson = JsonSerializer.Serialize(finalValidationResults, JsonOptions);
@@ -834,31 +841,41 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         };
     }
 
+    /// <summary>
+    /// Repairs the current generated files by applying targeted, validation-aware diffs and rerunning validations.
+    /// </summary>
     public async Task<CodeGenSessionDto> Repair(TriggerRepairInput input)
     {
         var session = await LoadSession(input.SessionId);
         session.RepairAttempts++;
 
         var currentFiles = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>();
+        var spec = LoadStoredSpec(session.SpecJson) ?? new AppSpecDto();
+        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+        var repairFailures = input.Failures?.Where(f => f?.Status == "failed").ToList() ?? new List<ValidationResultDto>();
+        var affectedPaths = BuildRepairAffectedPaths(repairFailures, spec, stack);
 
-        // Use the dedicated repair prompt template
-        var repairPrompt = RepairPrompts.BuildRepairPrompt(input.Failures, currentFiles);
+        var repairPrompt = RepairPrompts.BuildRepairPrompt(repairFailures, spec, currentFiles, affectedPaths);
 
-        var response = await CallGeminiAsync(
-            "You are an expert code repair agent. The generated code has validation failures.",
+        var response = await CallAiAsync(
+            "You are an expert code repair agent specializing in targeted, minimal diffs.",
             repairPrompt);
 
-        var repairedFiles = ParseFiles(response);
-        foreach (var repaired in repairedFiles)
-        {
-            var existing = currentFiles.FirstOrDefault(f => f.Path == repaired.Path);
-            if (existing != null)
-                existing.Content = repaired.Content;
-            else
-                currentFiles.Add(new GeneratedFileDto { Path = repaired.Path, Content = repaired.Content });
-        }
+        var repairedFiles = ConvertToFileDtos(ParseFiles(response));
+        var deletedFiles = ParseDeletedFiles(response);
+        var mergedFiles = MergeRefinementResults(currentFiles, repairedFiles, deletedFiles);
+        var validationRules = spec.Validations ?? new List<ValidationRuleDto>();
+        var validationResults = EvaluateValidationResults(validationRules, ConvertToFiles(mergedFiles), stack);
+        var hasFailures = validationResults.Any(v => v.Status == "failed");
 
-        session.GeneratedFilesJson = JsonSerializer.Serialize(currentFiles, JsonOptions);
+        session.GeneratedFilesJson = JsonSerializer.Serialize(mergedFiles, JsonOptions);
+        session.ValidationResultsJson = JsonSerializer.Serialize(validationResults, JsonOptions);
+        session.GenerationMode = "repair";
+        session.Status = hasFailures
+            ? (int)CodeGenStatus.ValidationFailed
+            : (int)CodeGenStatus.ValidationPassed;
+        session.CurrentPhase = hasFailures ? "repair-validation-failed" : "repair-complete";
+        session.ErrorMessage = null;
         session.UpdatedAt = DateTime.UtcNow;
         await SaveSession(session);
         return MapSessionToDto(session);
@@ -867,6 +884,203 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     // ──────────────────────────────────────────────────────────────────────────
     // Refinement/diff-based updates
     // ──────────────────────────────────────────────────────────────────────────
+
+    private static List<string> ParseDeletedFiles(string response)
+    {
+        var deletedSection = ParseDelimitedSection(response, "DELETED");
+        return string.IsNullOrWhiteSpace(deletedSection)
+            ? new List<string>()
+            : ParseCsvList(deletedSection);
+    }
+
+    private static List<string> BuildRepairAffectedPaths(
+        List<ValidationResultDto> failures,
+        AppSpecDto spec,
+        StackConfigDto stack)
+    {
+        var framework = ResolveFramework(stack);
+        var affectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var failure in failures ?? new List<ValidationResultDto>())
+        {
+            foreach (var path in ResolveAffectedPaths(failure, spec, framework))
+            {
+                if (!string.IsNullOrWhiteSpace(path))
+                    affectedPaths.Add(NormalizeFilePath(path));
+            }
+        }
+
+        return affectedPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IEnumerable<string> ResolveAffectedPaths(
+        ValidationResultDto failure,
+        AppSpecDto spec,
+        Framework? framework)
+    {
+        if (failure == null)
+            yield break;
+
+        foreach (var extractedPath in ExtractFilePathsFromText(failure.Message))
+            yield return extractedPath;
+
+        foreach (var shellPath in ResolveShellRepairPaths(failure.Id, failure.Message, framework))
+            yield return shellPath;
+
+        foreach (var validationPath in ResolveValidationRuleRepairPaths(failure.Id, spec, framework))
+            yield return validationPath;
+    }
+
+    private static IEnumerable<string> ResolveShellRepairPaths(
+        string validationId,
+        string message,
+        Framework? framework)
+    {
+        var normalizedId = validationId?.Trim();
+
+        if (string.Equals(normalizedId, NextHomePageValidationId, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "src/app/page.tsx";
+            yield break;
+        }
+
+        if (string.Equals(normalizedId, ViteIndexHtmlValidationId, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "index.html";
+            yield break;
+        }
+
+        if (string.Equals(normalizedId, RequiredLayoutValidationId, StringComparison.OrdinalIgnoreCase))
+        {
+            var layoutPath = ResolveLayoutFilePath(framework);
+            if (!string.IsNullOrWhiteSpace(layoutPath))
+                yield return layoutPath;
+
+            foreach (var extractedPath in ExtractFilePathsFromText(message))
+                yield return extractedPath;
+
+            yield break;
+        }
+
+        if (string.Equals(normalizedId, StyledHomeRouteValidationId, StringComparison.OrdinalIgnoreCase))
+        {
+            var homeRoutePath = ResolveHomeRouteFilePath(framework);
+            if (!string.IsNullOrWhiteSpace(homeRoutePath))
+                yield return homeRoutePath;
+
+            foreach (var extractedPath in ExtractFilePathsFromText(message))
+                yield return extractedPath;
+        }
+    }
+
+    private static IEnumerable<string> ResolveValidationRuleRepairPaths(
+        string failureId,
+        AppSpecDto spec,
+        Framework? framework)
+    {
+        var validation = spec?.Validations?.FirstOrDefault(rule =>
+            !string.IsNullOrWhiteSpace(rule?.Id)
+            && rule.Id.Equals(failureId, StringComparison.OrdinalIgnoreCase));
+
+        if (validation == null)
+            yield break;
+
+        if (LooksLikeFilePath(validation.Target))
+            yield return validation.Target;
+
+        var category = (validation.Category ?? string.Empty).ToLowerInvariant();
+        if (category == "route-exists")
+        {
+            var routeHint = ExtractRouteHint(validation);
+            var routeFilePath = ResolveRouteFilePath(routeHint, framework);
+            if (!string.IsNullOrWhiteSpace(routeFilePath))
+                yield return routeFilePath;
+        }
+
+        if (category is "build-passes" or "lint-passes" or "type-check")
+            yield return "package.json";
+    }
+
+    private static IEnumerable<string> ExtractFilePathsFromText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            yield break;
+
+        var matches = Regex.Matches(
+            text,
+            @"(?<![A-Za-z0-9])(?:\.{0,2}/)?[A-Za-z0-9_\-/]+\.[A-Za-z0-9._-]+",
+            RegexOptions.CultureInvariant);
+
+        foreach (Match match in matches)
+        {
+            var path = NormalizeFilePath(match.Value);
+            if (!string.IsNullOrWhiteSpace(path))
+                yield return path;
+        }
+    }
+
+    private static bool LooksLikeFilePath(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var normalized = NormalizeFilePath(value);
+        return normalized.Contains('/')
+            || Regex.IsMatch(normalized, @"^[A-Za-z0-9_.-]+\.[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant);
+    }
+
+    private static Framework? ResolveFramework(StackConfigDto stack)
+    {
+        if (string.IsNullOrWhiteSpace(stack?.Framework))
+            return null;
+
+        return MapFrameworkString(stack.Framework);
+    }
+
+    private static string ResolveLayoutFilePath(Framework? framework)
+    {
+        if (framework == Framework.NextJS)
+            return "src/app/layout.tsx";
+
+        if (framework == Framework.ReactVite)
+            return "src/App.tsx";
+
+        return string.Empty;
+    }
+
+    private static string ResolveHomeRouteFilePath(Framework? framework)
+    {
+        if (framework == Framework.NextJS)
+            return "src/app/page.tsx";
+
+        if (framework == Framework.ReactVite)
+            return "src/App.tsx";
+
+        return string.Empty;
+    }
+
+    private static string ResolveRouteFilePath(string route, Framework? framework)
+    {
+        if (string.IsNullOrWhiteSpace(route) || framework == null)
+            return string.Empty;
+
+        var normalizedRoute = NormalizePageRoute(route);
+        if (framework == Framework.NextJS)
+        {
+            if (normalizedRoute == "/")
+                return "src/app/page.tsx";
+
+            return $"src/app/{normalizedRoute.TrimStart('/').TrimEnd('/')}/page.tsx";
+        }
+
+        if (framework == Framework.ReactVite)
+            return "src/App.tsx";
+
+        return string.Empty;
+    }
 
     public async Task<RefinementResultDto> RefineSession(RefinementInputDto input)
     {
@@ -887,7 +1101,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         string response;
         try
         {
-            response = await CallGeminiAsync(
+            response = await CallAiAsync(
                 "You are an expert code refactoring agent specializing in targeted, minimal changes.",
                 prompt);
         }
@@ -936,7 +1150,8 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         // Run validation on impacted areas
         var specValidations = spec.Validations ?? new List<ValidationRuleDto>();
         var mergedFilesForValidation = ConvertToFiles(mergedFiles);
-        var validationResults = EvaluateValidationResults(specValidations, mergedFilesForValidation);
+        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+        var validationResults = EvaluateValidationResults(specValidations, mergedFilesForValidation, stack);
 
         return new RefinementResultDto
         {
@@ -1033,7 +1248,12 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         var readmeMarkdown = ParseDelimitedSection(response, "README")?.Trim()
             ?? "# Generated Application\n\nREADME generation failed.";
         var summary = ParseDelimitedSection(response, "SUMMARY")?.Trim() ?? "A new application.";
-        var plan = await GeneratePlanFromReadmeAsync(readmeMarkdown, stack, session.Id.ToString());
+        var plan = await GeneratePlanFromReadmeAsync(
+            readmeMarkdown,
+            stack,
+            session,
+            features,
+            entities);
 
         return new ReadmeResultDto
         {
@@ -1051,7 +1271,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     {
         try
         {
-            return await CallGeminiAsync(
+            return await CallAiAsync(
                 "You are an expert technical writer specializing in developer documentation.",
                 BuildReadmePrompt(session, stack, features, entities));
         }
@@ -1065,27 +1285,312 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     private async Task<AppSpecDto> GeneratePlanFromReadmeAsync(
         string readmeMarkdown,
         StackConfigDto stack,
-        string sessionId)
+        CodeGenSession session,
+        List<string> features,
+        List<string> entities)
     {
+        var sessionId = session?.Id.ToString() ?? string.Empty;
+
         try
         {
             Logger.Debug($"GenerateReadme: Deriving implementation plan from README for session {sessionId}");
-            var response = await CallGeminiAsync(
+            var response = await CallAiAsync(
                 "You are an expert software architect. Convert the approved README into a concrete implementation plan.",
-                PlannerPrompts.BuildPlanFromReadmePrompt(readmeMarkdown, stack));
+                PlannerPrompts.BuildPlanFromReadmePrompt(
+                    readmeMarkdown,
+                    stack,
+                    session?.NormalizedRequirement ?? session?.Prompt ?? string.Empty,
+                    features,
+                    entities));
 
             var specJson = ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
             var plan = ParseSpecOrDefault(specJson, out var parseWarning);
             if (!string.IsNullOrWhiteSpace(parseWarning))
                 Logger.Warn(parseWarning);
 
-            return NormalizeSpec(plan);
+            return EnrichReadmePlan(
+                NormalizeSpec(plan),
+                readmeMarkdown,
+                session,
+                features,
+                entities);
         }
         catch (Exception ex)
         {
             Logger.Error($"GenerateReadme: Failed to derive implementation plan for session {sessionId}", ex);
             throw new UserFriendlyException($"Failed to derive an implementation plan from the README: {ex.Message}");
         }
+    }
+
+    private static AppSpecDto EnrichReadmePlan(
+        AppSpecDto plan,
+        string readmeMarkdown,
+        CodeGenSession session,
+        List<string> features,
+        List<string> detectedEntities)
+    {
+        var enrichedPlan = NormalizeSpec(plan ?? new AppSpecDto());
+        var requirement = session?.NormalizedRequirement ?? session?.Prompt ?? string.Empty;
+
+        EnrichReadmeEntities(enrichedPlan, readmeMarkdown, requirement, detectedEntities, features);
+        EnrichReadmePages(enrichedPlan, readmeMarkdown);
+        EnrichReadmeApiRoutes(enrichedPlan, readmeMarkdown);
+
+        if (string.IsNullOrWhiteSpace(enrichedPlan.ArchitectureNotes))
+            enrichedPlan.ArchitectureNotes = requirement;
+
+        return NormalizeSpec(enrichedPlan);
+    }
+
+    private static void EnrichReadmeEntities(
+        AppSpecDto plan,
+        string readmeMarkdown,
+        string requirement,
+        List<string> detectedEntities,
+        List<string> features)
+    {
+        if (plan.Entities.Count > 0)
+            return;
+
+        var entityCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entity in detectedEntities ?? new List<string>())
+        {
+            if (!string.IsNullOrWhiteSpace(entity))
+                entityCandidates.Add(ToPascalIdentifier(entity));
+        }
+
+        foreach (var entity in ExtractMarkdownBulletItems(readmeMarkdown, "data model", "entities", "domain model"))
+        {
+            var entityName = ExtractLeadingIdentifier(entity);
+            if (!string.IsNullOrWhiteSpace(entityName))
+                entityCandidates.Add(entityName);
+        }
+
+        if (entityCandidates.Count == 0)
+        {
+            var fallbackEntity = InferTodoEntityName($"{requirement} {string.Join(' ', features ?? new List<string>())}");
+            if (!string.IsNullOrWhiteSpace(fallbackEntity))
+                entityCandidates.Add(fallbackEntity);
+        }
+
+        foreach (var entityName in entityCandidates)
+            plan.Entities.Add(BuildFallbackEntitySpec(entityName));
+    }
+
+    private static void EnrichReadmePages(AppSpecDto plan, string readmeMarkdown)
+    {
+        var existingRoutes = new HashSet<string>(
+            plan.Pages.Select(page => NormalizePageRoute(page.Route)),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var route in ExtractReadmeRoutes(readmeMarkdown))
+        {
+            var normalizedRoute = NormalizePageRoute(route);
+            if (string.IsNullOrWhiteSpace(normalizedRoute) || normalizedRoute.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (existingRoutes.Add(normalizedRoute))
+            {
+                plan.Pages.Add(new PageSpecDto
+                {
+                    Route = normalizedRoute,
+                    Name = BuildPageNameFromRoute(normalizedRoute),
+                    Layout = normalizedRoute == "/" ? "public" : "authenticated",
+                    Components = new List<string>(),
+                    DataRequirements = new List<string>(),
+                    Description = "Recovered from the approved README."
+                });
+            }
+        }
+
+        EnsureHomePage(plan.Pages);
+    }
+
+    private static void EnrichReadmeApiRoutes(AppSpecDto plan, string readmeMarkdown)
+    {
+        if (plan.ApiRoutes.Count > 0)
+            return;
+
+        foreach (Match match in Regex.Matches(
+            readmeMarkdown ?? string.Empty,
+            @"\b(GET|POST|PUT|PATCH|DELETE)\s+(/api/[A-Za-z0-9_\-/{}/:\[\]]+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            var method = match.Groups[1].Value.ToUpperInvariant();
+            var path = NormalizeApiPath(match.Groups[2].Value);
+            if (string.IsNullOrWhiteSpace(path))
+                continue;
+
+            plan.ApiRoutes.Add(new ApiRouteSpecDto
+            {
+                Method = method,
+                Path = path,
+                Handler = BuildHandlerName(method, path),
+                RequestBody = new { },
+                ResponseShape = new { },
+                Auth = !path.Contains("login", StringComparison.OrdinalIgnoreCase)
+                    && !path.Contains("register", StringComparison.OrdinalIgnoreCase),
+                Description = "Recovered from the approved README."
+            });
+        }
+    }
+
+    private static IEnumerable<string> ExtractReadmeRoutes(string readmeMarkdown)
+    {
+        foreach (Match match in Regex.Matches(
+            readmeMarkdown ?? string.Empty,
+            @"(?<![A-Za-z0-9])/(?!/)(?:[A-Za-z0-9_\-\[\]{}]+(?:/[A-Za-z0-9_\-\[\]{}]+)*)?",
+            RegexOptions.CultureInvariant))
+        {
+            var route = match.Value.Trim();
+            if (!string.IsNullOrWhiteSpace(route))
+                yield return route;
+        }
+    }
+
+    private static List<string> ExtractMarkdownBulletItems(string markdown, params string[] sectionHints)
+    {
+        var items = new List<string>();
+        if (string.IsNullOrWhiteSpace(markdown))
+            return items;
+
+        var lines = markdown.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var inSection = false;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (line.StartsWith("#", StringComparison.Ordinal))
+            {
+                inSection = sectionHints.Any(hint =>
+                    line.Contains(hint, StringComparison.OrdinalIgnoreCase));
+                continue;
+            }
+
+            if (!inSection || line.Length < 2 || (line[0] != '-' && line[0] != '*'))
+                continue;
+
+            items.Add(line[1..].Trim());
+        }
+
+        return items;
+    }
+
+    private static string ExtractLeadingIdentifier(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+            return string.Empty;
+
+        var stripped = rawValue.Trim().Trim('`');
+        var value = stripped.Split(':', 2, StringSplitOptions.TrimEntries)[0];
+        return ToPascalIdentifier(value);
+    }
+
+    private static string ToPascalIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var parts = Regex.Split(value.Trim(), @"[^A-Za-z0-9]+")
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToList();
+
+        if (parts.Count == 0)
+            return string.Empty;
+
+        return string.Concat(parts.Select(part =>
+            part.Length == 1
+                ? part.ToUpperInvariant()
+                : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()));
+    }
+
+    private static string InferTodoEntityName(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return string.Empty;
+
+        if (source.Contains("todo", StringComparison.OrdinalIgnoreCase))
+            return "Task";
+
+        if (source.Contains("task", StringComparison.OrdinalIgnoreCase))
+            return "Task";
+
+        if (source.Contains("note", StringComparison.OrdinalIgnoreCase))
+            return "Note";
+
+        return string.Empty;
+    }
+
+    private static EntitySpecDto BuildFallbackEntitySpec(string entityName)
+    {
+        var normalizedName = ToPascalIdentifier(entityName);
+        return new EntitySpecDto
+        {
+            Name = normalizedName,
+            TableName = normalizedName.ToLowerInvariant(),
+            Fields = BuildFallbackEntityFields(normalizedName),
+            Relations = new List<RelationSpecDto>()
+        };
+    }
+
+    private static List<FieldSpecDto> BuildFallbackEntityFields(string entityName)
+    {
+        var fields = new List<FieldSpecDto>
+        {
+            new()
+            {
+                Name = "id",
+                Type = "string",
+                Required = true,
+                Unique = true,
+                Description = "Stable identifier."
+            }
+        };
+
+        if (entityName.Contains("Task", StringComparison.OrdinalIgnoreCase)
+            || entityName.Contains("Todo", StringComparison.OrdinalIgnoreCase))
+        {
+            fields.Add(new FieldSpecDto
+            {
+                Name = "title",
+                Type = "string",
+                Required = true,
+                MaxLength = 255,
+                Description = "Short task title."
+            });
+            fields.Add(new FieldSpecDto
+            {
+                Name = "completed",
+                Type = "boolean",
+                Required = true,
+                Description = "Whether the task is complete."
+            });
+            return fields;
+        }
+
+        fields.Add(new FieldSpecDto
+        {
+            Name = "name",
+            Type = "string",
+            Required = true,
+            MaxLength = 255,
+            Description = $"{entityName} display name."
+        });
+
+        return fields;
+    }
+
+    private static string BuildHandlerName(string method, string path)
+    {
+        var suffix = string.Concat(
+            Regex.Split(path ?? string.Empty, @"[^A-Za-z0-9]+")
+                .Where(segment => !string.IsNullOrWhiteSpace(segment) && !segment.Equals("api", StringComparison.OrdinalIgnoreCase))
+                .Select(segment => char.ToUpperInvariant(segment[0]) + segment[1..]));
+
+        if (string.IsNullOrWhiteSpace(suffix))
+            suffix = "Route";
+
+        return $"{method.ToLowerInvariant()}{suffix}";
     }
 
     private static string BuildReadmePrompt(
@@ -1106,6 +1611,12 @@ The README should be written in markdown format and include:
 7. Getting started guide
 8. Environment variables needed
 9. Project structure overview
+
+For the sections about entities, routes, and APIs:
+- Prefer concrete bullet lists or markdown tables over vague prose.
+- Name the main domain entities explicitly, even if they only exist in client-side state.
+- List the user-facing routes explicitly, using real paths like /, /tasks, /settings when known.
+- If the app is client-only and does not need backend endpoints, say that clearly instead of omitting the section.
 
 Application Details:
 - Name: {session.ProjectName}
@@ -1166,13 +1677,21 @@ Return your response in the following format:
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Gemini API
+    // AI Provider (Currently set to Gemini)
     // ──────────────────────────────────────────────────────────────────────────
+
+    private async Task<string> CallAiAsync(string systemPrompt, string userPrompt)
+    {
+        // To use Claude instead, uncomment the following line:
+        // return await _claudeApiClient.CallClaudeAsync(systemPrompt, userPrompt);
+        
+        return await CallGeminiAsync(systemPrompt, userPrompt);
+    }
 
     private async Task<string> CallGeminiAsync(string systemPrompt, string userPrompt)
     {
         var apiKey = _configuration["Gemini:ApiKey"];
-        var model = _configuration["Gemini:Model"] ?? "gemini-3.1-pro-preview";
+        var model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash";
         var baseUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
         int maxRetries = 3;
@@ -1183,6 +1702,8 @@ Return your response in the following format:
             try
             {
                 var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(600);
+                
                 var requestBody = new
                 {
                     system_instruction = new
@@ -1791,6 +2312,42 @@ Return your response in the following format:
             .ToList();
     }
 
+    private static void EnsureHomePage(List<PageSpecDto> pages)
+    {
+        if (pages == null || pages.Count == 0)
+            return;
+
+        var existingRoutes = new HashSet<string>(
+            pages.Select(page => NormalizePageRoute(page.Route)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!existingRoutes.Add("/"))
+            return;
+
+        pages.Insert(0, BuildHomePageSpec(pages));
+    }
+
+    private static PageSpecDto BuildHomePageSpec(List<PageSpecDto> existingPages)
+    {
+        return new PageSpecDto
+        {
+            Route = "/",
+            Name = "Home",
+            Layout = InferHomePageLayout(existingPages),
+            Components = new List<string>(),
+            DataRequirements = new List<string>(),
+            Description = "Recovered default home route for the application shell."
+        };
+    }
+
+    private static string InferHomePageLayout(List<PageSpecDto> existingPages)
+    {
+        // Mirror the plan's prevailing access level so the generated shell stays consistent.
+        return existingPages.Any(page => string.Equals(page.Layout, "public", StringComparison.OrdinalIgnoreCase))
+            ? "public"
+            : "authenticated";
+    }
+
     private static List<ValidationRuleDto> BuildFallbackValidations(AppSpecDto spec)
     {
         var rules = new List<ValidationRuleDto>
@@ -2096,7 +2653,9 @@ Return your response in the following format:
         return sb.ToString();
     }
 
-    private static List<ValidationResultDto> BuildInitialValidationResults(List<ValidationRuleDto> validations)
+    private static List<ValidationResultDto> BuildInitialValidationResults(
+        List<ValidationRuleDto> validations,
+        StackConfigDto stack)
     {
         var results = new List<ValidationResultDto>();
         
@@ -2158,13 +2717,17 @@ Return your response in the following format:
                 Message = "Project should build successfully."
             });
         }
-        
+
+        results.AddRange(BuildShellValidationPlaceholders(stack)
+            .Where(shellValidation => results.All(existing => !existing.Id.Equals(shellValidation.Id, StringComparison.OrdinalIgnoreCase))));
+
         return results;
     }
 
     private static List<ValidationResultDto> EvaluateValidationResults(
         List<ValidationRuleDto> validations,
-        List<GeneratedFile> generatedFiles)
+        List<GeneratedFile> generatedFiles,
+        StackConfigDto stack)
     {
         var files = generatedFiles ?? new List<GeneratedFile>();
         var filePaths = new HashSet<string>(
@@ -2303,6 +2866,9 @@ Return your response in the following format:
             });
         }
 
+        results.AddRange(BuildShellValidationResults(stack, files, filePaths)
+            .Where(shellValidation => results.All(existing => !existing.Id.Equals(shellValidation.Id, StringComparison.OrdinalIgnoreCase))));
+
         // Always ensure build-passes validation is present in results
         if (!hasBuildPassesInResults)
         {
@@ -2331,6 +2897,175 @@ Return your response in the following format:
         }
 
         return results;
+    }
+
+    private static List<ValidationResultDto> BuildShellValidationPlaceholders(StackConfigDto stack)
+    {
+        if (string.IsNullOrWhiteSpace(stack?.Framework))
+            return new List<ValidationResultDto>();
+
+        var framework = MapFrameworkString(stack?.Framework);
+        var results = new List<ValidationResultDto>();
+
+        if (framework == Framework.NextJS)
+        {
+            results.Add(CreatePendingValidation(
+                NextHomePageValidationId,
+                "Next.js shell must include src/app/page.tsx."));
+            results.Add(CreatePendingValidation(
+                RequiredLayoutValidationId,
+                "Application shell must include a root layout file."));
+            results.Add(CreatePendingValidation(
+                StyledHomeRouteValidationId,
+                "Application must include at least one styled landing or home route."));
+        }
+
+        if (framework == Framework.ReactVite)
+        {
+            results.Add(CreatePendingValidation(
+                ViteIndexHtmlValidationId,
+                "Vite shell must include index.html."));
+            results.Add(CreatePendingValidation(
+                RequiredLayoutValidationId,
+                "Application shell must include a root layout file."));
+            results.Add(CreatePendingValidation(
+                StyledHomeRouteValidationId,
+                "Application must include at least one styled landing or home route."));
+        }
+
+        return results;
+    }
+
+    private static ValidationResultDto CreatePendingValidation(string id, string message)
+    {
+        return new ValidationResultDto
+        {
+            Id = id,
+            Status = "pending",
+            Message = message
+        };
+    }
+
+    private static List<ValidationResultDto> BuildShellValidationResults(
+        StackConfigDto stack,
+        List<GeneratedFile> files,
+        HashSet<string> filePaths)
+    {
+        if (string.IsNullOrWhiteSpace(stack?.Framework))
+            return new List<ValidationResultDto>();
+
+        var framework = MapFrameworkString(stack?.Framework);
+        var results = new List<ValidationResultDto>();
+
+        if (framework == Framework.NextJS)
+        {
+            var hasHomePage = HasAnyFile(filePaths, "src/app/page.tsx", "src/app/page.jsx", "src/app/page.ts", "src/app/page.js");
+            var hasLayout = HasAnyFile(filePaths, "src/app/layout.tsx", "src/app/layout.jsx", "src/app/layout.ts", "src/app/layout.js");
+            var hasStyledHomeRoute = HasStyledRoute(files,
+                "src/app/page.tsx",
+                "src/app/page.jsx",
+                "src/app/page.ts",
+                "src/app/page.js");
+
+            results.Add(CreateShellValidationResult(
+                NextHomePageValidationId,
+                hasHomePage,
+                "Next.js shell file present: src/app/page.tsx.",
+                "Next.js shell file missing: src/app/page.tsx."));
+            results.Add(CreateShellValidationResult(
+                RequiredLayoutValidationId,
+                hasLayout,
+                "Root layout file present.",
+                "Required layout file missing: src/app/layout.tsx."));
+            results.Add(CreateShellValidationResult(
+                StyledHomeRouteValidationId,
+                hasStyledHomeRoute,
+                "Styled landing/home route found.",
+                "No styled landing/home route found in src/app/page.tsx."));
+        }
+
+        if (framework == Framework.ReactVite)
+        {
+            var hasIndexHtml = HasAnyFile(filePaths, "index.html");
+            var hasLayout = HasAnyFile(filePaths, "src/app.tsx", "src/app.jsx", "src/app.ts", "src/app.js");
+            var hasStyledHomeRoute = HasStyledRoute(files,
+                "src/app.tsx",
+                "src/app.jsx",
+                "src/app.ts",
+                "src/app.js");
+
+            results.Add(CreateShellValidationResult(
+                ViteIndexHtmlValidationId,
+                hasIndexHtml,
+                "Vite entry file present: index.html.",
+                "Vite shell file missing: index.html."));
+            results.Add(CreateShellValidationResult(
+                RequiredLayoutValidationId,
+                hasLayout,
+                "Root layout file present.",
+                "Required layout file missing: src/App.tsx."));
+            results.Add(CreateShellValidationResult(
+                StyledHomeRouteValidationId,
+                hasStyledHomeRoute,
+                "Styled landing/home route found.",
+                "No styled landing/home route found in src/App.tsx."));
+        }
+
+        return results;
+    }
+
+    private static ValidationResultDto CreateShellValidationResult(
+        string id,
+        bool passed,
+        string passMessage,
+        string failMessage)
+    {
+        return new ValidationResultDto
+        {
+            Id = id,
+            Status = passed ? "passed" : "failed",
+            Message = passed ? passMessage : failMessage
+        };
+    }
+
+    private static bool HasAnyFile(HashSet<string> filePaths, params string[] candidatePaths)
+    {
+        return candidatePaths
+            .Select(NormalizeFilePath)
+            .Any(filePaths.Contains);
+    }
+
+    private static bool HasStyledRoute(List<GeneratedFile> files, params string[] candidatePaths)
+    {
+        foreach (var candidatePath in candidatePaths)
+        {
+            var normalizedPath = NormalizeFilePath(candidatePath);
+            var routeFile = files.FirstOrDefault(file =>
+                NormalizeFilePath(file.Path).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+            if (routeFile == null)
+                continue;
+
+            // Treat common styling hooks as evidence that the home route is more than a bare placeholder.
+            if (ContainsStyleHint(routeFile.Content))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsStyleHint(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return false;
+
+        return content.Contains("className=", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("style={{", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("styles.", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("createStyles", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("styled(", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("styled.", StringComparison.OrdinalIgnoreCase)
+            || Regex.IsMatch(content, @"import\s+.+\.(css|scss|sass|less)[""'];?", RegexOptions.IgnoreCase);
     }
 
     private static List<ValidationResultDto> MarkValidationResultsFailed(
@@ -2507,6 +3242,7 @@ Return your response in the following format:
             GeneratedFiles = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>(),
             RepairAttempts = session.RepairAttempts,
             IsPublic = session.IsPublic,
+            GenerationMode = session.GenerationMode,
             CreatedAt = session.CreatedAt,
             UpdatedAt = session.UpdatedAt
         };

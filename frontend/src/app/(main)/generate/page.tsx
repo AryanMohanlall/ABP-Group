@@ -57,6 +57,7 @@ export default function GeneratePage() {
   const [extraConfig, setExtraConfig] = useState<ExtraConfig | null>(null);
   const [generationStatus, setGenerationStatus] = useState<IGenerationStatus | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleCaptureNext = (result: ICodeGenSession) => {
     setSession(result);
@@ -111,6 +112,30 @@ export default function GeneratePage() {
     }
   };
 
+  const handleSaveOnly = async () => {
+    if (!session) return;
+    setIsSaving(true);
+
+    try {
+      const stack = session.confirmedStack;
+      await createProject({
+        name: session.projectName || "generated-app",
+        prompt: session.normalizedRequirement || session.prompt,
+        promptVersion: 1,
+        framework: mapFramework(stack?.framework),
+        language: mapLanguage(stack?.language),
+        databaseOption: mapDatabase(stack?.database),
+        includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
+        status: ProjectStatus.CodeGenerationCompleted,
+        templateId: extraConfig?.templateId ?? undefined,
+      });
+
+      router.push("/projects");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleRetry = () => {
     setGenerationStatus(null);
     setCurrentStep(4);
@@ -156,9 +181,11 @@ export default function GeneratePage() {
           sessionId={session.id}
           status={generationStatus}
           onDeploy={handleDeploy}
+          onSaveOnly={handleSaveOnly}
           onRetry={handleRetry}
           onBack={handleBackToSpec}
           isDeploying={isDeploying}
+          isSaving={isSaving}
         />
       )}
     </div>

@@ -358,6 +358,193 @@ A watchlist application with authenticated CRUD flows.
                 }
 
                 [Fact]
+                public async Task GenerateReadme_EnrichesSparsePlanFromDetectedEntities()
+                {
+                        var sessionId = System.Guid.NewGuid();
+                        var readmeResponse = @"===README===
+# Todo App
+
+## Features
+- Create tasks
+- Mark tasks complete
+
+## Pages and Navigation
+- /
+
+## API Endpoints Overview
+- Client-only app, no backend API routes required.
+
+===END README===
+
+===SUMMARY===
+A lightweight todo application that stores tasks in client state.
+===END SUMMARY===";
+
+                        var planResponse = @"===SPEC_JSON===
+{
+  ""architectureNotes"": ""Client-only todo app."",
+  ""entities"": [],
+  ""pages"": [
+    {
+      ""route"": ""/"",
+      ""name"": ""Home"",
+      ""layout"": ""public"",
+      ""components"": [],
+      ""dataRequirements"": [],
+      ""description"": ""Landing page""
+    }
+  ],
+  ""apiRoutes"": [],
+  ""validations"": [],
+  ""fileManifest"": [],
+  ""dependencyPlan"": {
+    ""dependencies"": [],
+    ""devDependencies"": [],
+    ""envVars"": {}
+  }
+}
+===END SPEC_JSON===";
+
+                        var handler = new SequentialMockHttpMessageHandler(readmeResponse, planResponse);
+                        var factory = new MockHttpClientFactory(handler);
+                        var config = new ConfigurationBuilder()
+                                .AddInMemoryCollection(new Dictionary<string, string>
+                                {
+                                        ["Gemini:ApiKey"] = "test-key"
+                                })
+                                .Build();
+
+                        var templateRepo = Substitute.For<IRepository<Template, int>>();
+                        var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+
+                        var session = new CodeGenSession
+                        {
+                                Id = sessionId,
+                                ProjectName = "Todo App",
+                                Prompt = "Build a simple todo app without a database",
+                                NormalizedRequirement = "Build a simple todo app without a database",
+                                DetectedFeaturesJson = "[\"task management\",\"client-side state\"]",
+                                DetectedEntitiesJson = "[\"Task\"]",
+                                ConfirmedStackJson = "{\"framework\":\"Next.js\",\"language\":\"TypeScript\"}",
+                                Status = (int)CodeGenStatus.StackConfirmed,
+                                CreatedAt = System.DateTime.UtcNow,
+                                UpdatedAt = System.DateTime.UtcNow,
+                        };
+
+                        sessionRepo.FirstOrDefaultAsync(sessionId).Returns(session);
+                        sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+                        sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+
+                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+
+                        var result = await service.GenerateReadme(sessionId.ToString());
+
+                        Assert.NotNull(result.Plan);
+                        Assert.Contains(result.Plan.Entities, entity => entity.Name == "Task");
+                        Assert.Contains(result.Plan.Entities[0].Fields, field => field.Name == "title");
+                        Assert.Contains(result.Plan.Pages, page => page.Route == "/");
+                        Assert.Empty(result.Plan.ApiRoutes);
+                }
+
+                [Fact]
+                public async Task GenerateReadme_AddsHomePageWhenPlanMissesRootRoute()
+                {
+                        var sessionId = System.Guid.NewGuid();
+                        var readmeResponse = @"===README===
+# Notes Board
+
+## Features
+- Create quick notes
+- Pin important notes
+
+## Pages and Navigation
+- /notes
+
+===END README===
+
+===SUMMARY===
+A lightweight notes board for client-side note taking.
+===END SUMMARY===";
+
+                        var planResponse = @"===SPEC_JSON===
+{
+  ""architectureNotes"": ""Client-only notes app."",
+  ""entities"": [
+    {
+      ""name"": ""Note"",
+      ""tableName"": ""note"",
+      ""fields"": [
+        { ""name"": ""title"", ""type"": ""string"", ""required"": true, ""unique"": false }
+      ],
+      ""relations"": []
+    }
+  ],
+  ""pages"": [
+    {
+      ""route"": ""/notes"",
+      ""name"": ""Notes"",
+      ""layout"": ""authenticated"",
+      ""components"": [],
+      ""dataRequirements"": [],
+      ""description"": ""Main notes workspace.""
+    }
+  ],
+  ""apiRoutes"": [],
+  ""validations"": [],
+  ""fileManifest"": [],
+  ""dependencyPlan"": {
+    ""dependencies"": [],
+    ""devDependencies"": [],
+    ""envVars"": {}
+  }
+}
+===END SPEC_JSON===";
+
+                        var handler = new SequentialMockHttpMessageHandler(readmeResponse, planResponse);
+                        var factory = new MockHttpClientFactory(handler);
+                        var config = new ConfigurationBuilder()
+                                .AddInMemoryCollection(new Dictionary<string, string>
+                                {
+                                        ["Gemini:ApiKey"] = "test-key"
+                                })
+                                .Build();
+
+                        var templateRepo = Substitute.For<IRepository<Template, int>>();
+                        var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+
+                        var session = new CodeGenSession
+                        {
+                                Id = sessionId,
+                                ProjectName = "Notes Board",
+                                Prompt = "Build a simple notes app without a database",
+                                NormalizedRequirement = "Build a simple notes app without a database",
+                                DetectedFeaturesJson = "[\"notes\",\"client-side state\"]",
+                                DetectedEntitiesJson = "[\"Note\"]",
+                                ConfirmedStackJson = "{\"framework\":\"Next.js\",\"language\":\"TypeScript\"}",
+                                Status = (int)CodeGenStatus.StackConfirmed,
+                                CreatedAt = System.DateTime.UtcNow,
+                                UpdatedAt = System.DateTime.UtcNow,
+                        };
+
+                        sessionRepo.FirstOrDefaultAsync(sessionId).Returns(session);
+                        sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+                        sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+
+                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+
+                        var result = await service.GenerateReadme(sessionId.ToString());
+
+                        Assert.NotNull(result.Plan);
+                        Assert.Contains(result.Plan.Pages, page => page.Route == "/");
+                        Assert.Contains(result.Plan.Pages, page => page.Route == "/notes");
+                        Assert.Contains(result.Plan.Pages, page => page.Route == "/" && page.Name == "Home");
+                }
+
+                [Fact]
         public async Task GenerateProjectAsync_ReturnsResult_WithValidInput()
         {
             // Phase 1: Requirements analysis response
