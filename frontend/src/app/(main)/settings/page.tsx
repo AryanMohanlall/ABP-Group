@@ -12,7 +12,6 @@ import {
   Empty,
 } from "antd";
 import { useEffect, useState } from "react";
-import { getAxiosInstance } from "@/utils/axiosInstance";
 import {
   GithubIcon,
   CheckCircleIcon,

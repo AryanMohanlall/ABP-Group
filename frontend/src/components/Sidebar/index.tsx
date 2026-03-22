@@ -36,7 +36,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     user?.userName ||
     "User";
   const roles = user?.roleNames ?? [];
-  const rolesLabel = roles.length > 0 ? roles.join(", ") : "No role assigned";
   const initials =
     displayName
       .split(" ")

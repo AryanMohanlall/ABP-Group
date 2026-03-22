@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, Tag, Spin, message, Switch } from "antd";
-import { SparklesIcon, PlusIcon, ArrowRightIcon, EyeIcon, EyeOffIcon, PencilIcon, LockIcon, GlobeIcon } from "lucide-react";
+import { SparklesIcon, PlusIcon, ArrowRightIcon, PencilIcon, LockIcon, GlobeIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import { ICodeGenSession } from "@/providers/codegen-provider";
@@ -31,8 +31,6 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
   const [editingFeatureValue, setEditingFeatureValue] = useState("");
   const [editingEntityIndex, setEditingEntityIndex] = useState<number | null>(null);
   const [editingEntityValue, setEditingEntityValue] = useState("");
-
-  const editInputRef = useState<any>(null)[0]; // Placeholder for ref logic or use a simple id
 
   const maxChars = 100000;
   const remaining = maxChars - prompt.length;

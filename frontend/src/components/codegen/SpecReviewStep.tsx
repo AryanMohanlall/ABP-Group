@@ -279,7 +279,7 @@ export function SpecReviewStep({
 
       setEditablePlan({ ...editablePlan, entities: newEntities });
       setEntityModalVisible(false);
-    } catch (err) {
+    } catch (_err) {
       // Validation failed
     }
   };
@@ -326,7 +326,7 @@ export function SpecReviewStep({
 
       setEditablePlan({ ...editablePlan, pages: newPages });
       setPageModalVisible(false);
-    } catch (err) {}
+    } catch (_err) {}
   };
 
   // ─── API Route Handlers ────────────────────────────────────────────────────
@@ -371,7 +371,7 @@ export function SpecReviewStep({
 
       setEditablePlan({ ...editablePlan, apiRoutes: newApis });
       setApiModalVisible(false);
-    } catch (err) {}
+    } catch (_err) {}
   };
 
   const handleConfirm = async () => {
