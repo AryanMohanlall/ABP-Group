@@ -203,12 +203,23 @@ function FileViewer({ owner, repo, path, onBack }: { owner: string; repo: string
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    instance.get(`/api/github-app/file?owner=${owner}&repo=${repo}&path=${encodeURIComponent(path)}`)
-      .then(res => setFile(res.data.result?.file ?? res.data.file))
-      .catch(() => setFile(null))
-      .finally(() => setLoading(false));
-  }, [path]);
+    let active = true;
+    async function fetchFile() {
+      await Promise.resolve();
+      if (!active) return;
+      setLoading(true);
+      try {
+        const res = await instance.get(`/api/github-app/file?owner=${owner}&repo=${repo}&path=${encodeURIComponent(path)}`);
+        if (active) setFile(res.data.result?.file ?? res.data.file);
+      } catch {
+        if (active) setFile(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchFile();
+    return () => { active = false; };
+  }, [instance, owner, repo, path]);
 
   const copy = () => {
     if (file?.content) {

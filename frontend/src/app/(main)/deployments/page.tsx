@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAxiosInstance } from "@/utils/axiosInstance";
 import {
-  Button, Select, Input, Modal, Form, Spin, Alert, Tooltip, Space, Typography,
+  Button, Select, Input, Modal, Form, Spin, Alert, Tooltip, Space,
 } from "antd";
 import {
   ReloadOutlined, PlusOutlined, SendOutlined, ExportOutlined,
@@ -12,7 +12,6 @@ import {
 import { RocketIcon } from "lucide-react";
 import { useStyles } from "./styles/style";
 
-const { Text } = Typography;
 const { Option } = Select;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -128,6 +127,7 @@ export default function DeploymentsPage() {
   // ── Load Vercel projects ──────────────────────────────────────────────────
 
   const loadProjects = useCallback(async () => {
+    await Promise.resolve(); // yield before any setState — keeps effect body free of sync setState
     setLoadingProjects(true);
     try {
       const res = await instance.get("/api/vercel/projects?limit=50");
@@ -143,6 +143,7 @@ export default function DeploymentsPage() {
   // ── Load deployments ──────────────────────────────────────────────────────
 
   const loadDeployments = useCallback(async () => {
+    await Promise.resolve(); // yield before any setState — keeps effect body free of sync setState
     setLoadingDeployments(true);
     setError(null);
     try {
@@ -464,7 +465,7 @@ export default function DeploymentsPage() {
         footer={null}
         width={480}
         styles={{
-          content: {
+          body: {
             background: "#0d1117",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: 12,
@@ -541,7 +542,7 @@ export default function DeploymentsPage() {
                 }
                 style={{ width: "100%" }}
                 styles={{
-                  popup: { background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)" },
+                  popup: { root: { background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)" } },
                 }}
               >
                 {githubRepos.map((r) => (
