@@ -16,6 +16,7 @@ import {
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
+import { Image } from "antd";
 
 interface SidebarProps {
   currentPage: string;
@@ -27,7 +28,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const router = useRouter();
   const { user } = useAuthState();
   const { logout } = useAuthAction();
-  const isAdmin = user?.roleNames?.includes("PlatformAdministrator");
+  const isAdmin = user?.roleNames?.includes("Admin");
   const displayName =
     [user?.name, user?.surname].filter(Boolean).join(" ").trim() ||
     user?.userName ||
@@ -180,7 +181,18 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             className={cx(styles.profileCard, styles.focusRing)}
           >
             <div className={styles.profileInfo}>
-              <div className={styles.avatar}>{initials}</div>
+              <div className={styles.avatar}>
+                {" "}
+                {user?.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt="Avatar"
+                    className={styles.avatar}
+                  />
+                ) : (
+                  <div className={styles.avatar}>{initials}</div>
+                )}
+              </div>
               <div className={styles.profileTextBlock}>
                 <span className={styles.profileName}>{displayName}</span>
                 <span className={styles.roleBadge}>{rolesLabel}</span>
