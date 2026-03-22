@@ -49,11 +49,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "My Projects",
       icon: FolderIcon,
     },
-    {
+   /*  {
       id: "generate",
       label: "Generate",
       icon: SparklesIcon,
-    },
+    }, */
     {
       id: "templates",
       label: "Templates",
@@ -68,29 +68,9 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   const adminNav = [
     {
-      id: "admin",
-      label: "Overview",
-      icon: BarChart3Icon,
-    },
-    {
-      id: "admin-users",
-      label: "Users",
-      icon: UsersIcon,
-    },
-    {
-      id: "admin-projects",
-      label: "Projects",
-      icon: LayersIcon,
-    },
-    {
       id: "deployments",
       label: "Deployments",
       icon: ServerIcon,
-    },
-    {
-      id: "admin-health",
-      label: "System Health",
-      icon: ActivityIcon,
     },
     {
       id: "github",

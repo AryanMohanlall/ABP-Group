@@ -113,7 +113,7 @@ export default function ProjectDetailPage() {
     if (Number.isFinite(projectId)) {
       fetchById(projectId);
     }
-  }, [projectId, fetchById]);
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
