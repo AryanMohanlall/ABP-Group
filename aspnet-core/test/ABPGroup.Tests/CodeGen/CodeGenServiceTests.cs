@@ -10,6 +10,7 @@ using ABPGroup.Projects.Dto;
 using ABPGroup.Templates;
 using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -35,21 +36,14 @@ task
 
             var handler = new SequentialMockHttpMessageHandler(createSessionResponse);
             var factory = new MockHttpClientFactory(handler);
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>
-                {
-                    ["Groq:ApiKey"] = "test-key"
-                })
-                .Build();
-
-            var templateRepo = Substitute.For<IRepository<Template, int>>();
+            var config = new ConfigurationBuilder().Build();
             var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+            var templateRepo = Substitute.For<IRepository<Template, int>>();
+
             sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
-            sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
-                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.CreateSession(new CreateSessionInput
             {
@@ -62,66 +56,73 @@ task
         }
 
         [Fact]
-                public async Task GenerateSpec_ParsesNestedApiRouteShapes()
-                {
-                        var sessionId = System.Guid.NewGuid();
-                        var specResponse = @"===SPEC_JSON===
-{
-    ""entities"": [
+        public async Task GenerateSpec_ParsesNestedApiRouteShapes()
         {
-            ""name"": ""Task"",
-            ""tableName"": ""tasks"",
-            ""fields"": [
-                {
-                    ""name"": ""title"",
-                    ""type"": ""string"",
-                    ""required"": true,
-                    ""description"": ""Task title""
-                }
-            ],
-            ""relations"": []
-        }
-    ],
-    ""pages"": [
-        {
-            ""route"": ""/tasks"",
-            ""name"": ""Tasks"",
-            ""layout"": ""authenticated"",
-            ""components"": [""TaskList""],
-            ""dataRequirements"": [""tasks""],
-            ""description"": ""Task list page""
-        }
-    ],
-    ""apiRoutes"": [
-        {
-            ""method"": ""GET"",
-            ""path"": ""/api/tasks"",
-            ""handler"": ""tasks.getAll"",
-            ""requestBody"": {
-                ""filter"": {
-                    ""status"": ""string""
-                }
-            },
-            ""responseShape"": {
-                ""items"": {
-                    ""id"": ""string"",
-                    ""title"": ""string""
-                },
-                ""meta"": {
-                    ""count"": ""number""
-                }
-            },
-            ""auth"": true,
-            ""description"": ""List tasks""
-        }
-    ],
-    ""validations"": [],
-    ""fileManifest"": [""src/app/page.tsx""]
-}
-===END SPEC_JSON===";
+                var sessionId = System.Guid.NewGuid();
+                var readmeResponse = @"===README===
+        # Task App
+        ===END README===
 
-                        var handler = new SequentialMockHttpMessageHandler(specResponse);
-                        var factory = new MockHttpClientFactory(handler);
+        ===SUMMARY===
+        Task app summary
+        ===END SUMMARY===";
+
+                var specResponse = @"===SPEC_JSON===
+        {
+        ""entities"": [
+        {
+        ""name"": ""Task"",
+        ""tableName"": ""tasks"",
+        ""fields"": [
+        {
+            ""name"": ""title"",
+            ""type"": ""string"",
+            ""required"": true,
+            ""description"": ""Task title""
+        }
+        ],
+        ""relations"": []
+        }
+        ],
+        ""pages"": [
+        {
+        ""route"": ""/"",
+        ""name"": ""Home"",
+        ""layout"": ""public"",
+        ""components"": [],
+        ""dataRequirements"": [],
+        ""description"": ""Landing page""
+        }
+        ],
+        ""apiRoutes"": [
+        {
+        ""method"": ""GET"",
+        ""path"": ""/api/tasks"",
+        ""handler"": ""tasks.getAll"",
+        ""requestBody"": {
+        ""filter"": {
+            ""status"": ""string""
+        }
+        },
+        ""responseShape"": {
+        ""items"": {
+            ""id"": ""string"",
+            ""title"": ""string""
+        },
+        ""meta"": {
+            ""count"": ""number""
+        }
+        },
+        ""auth"": true,
+        ""description"": ""List tasks""
+        }
+        ],
+        ""validations"": [],
+        ""fileManifest"": [""src/app/page.tsx""]
+        }
+        ===END SPEC_JSON===";
+
+                var handler = new SequentialMockHttpMessageHandler(readmeResponse, specResponse);                        var factory = new MockHttpClientFactory(handler);
                         var config = new ConfigurationBuilder()
                                 .AddInMemoryCollection(new Dictionary<string, string>
                                 {
@@ -151,7 +152,7 @@ task
                         sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+                        var service = CreateService(factory, config, templateRepo, sessionRepo);
 
                         var result = await service.GenerateSpec(sessionId.ToString());
 
@@ -168,6 +169,14 @@ task
                 public async Task GenerateSpec_FillsMissingPagesAndValidations()
                 {
                         var sessionId = System.Guid.NewGuid();
+                        var readmeResponse = @"===README===
+# Todos App
+===END README===
+
+===SUMMARY===
+Todos app summary
+===END SUMMARY===";
+
                         var specResponse = @"===SPEC_JSON===
 {
     ""entities"": [
@@ -202,7 +211,7 @@ task
 }
 ===END SPEC_JSON===";
 
-                        var handler = new SequentialMockHttpMessageHandler(specResponse);
+                        var handler = new SequentialMockHttpMessageHandler(readmeResponse, specResponse);
                         var factory = new MockHttpClientFactory(handler);
                         var config = new ConfigurationBuilder()
                                 .AddInMemoryCollection(new Dictionary<string, string>
@@ -233,7 +242,7 @@ task
                         sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+                        var service = CreateService(factory, config, templateRepo, sessionRepo);
 
                         var result = await service.GenerateSpec(sessionId.ToString());
 
@@ -345,7 +354,7 @@ A watchlist application with authenticated CRUD flows.
                         sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+                        var service = CreateService(factory, config, templateRepo, sessionRepo);
 
                         var result = await service.GenerateReadme(sessionId.ToString());
 
@@ -437,7 +446,7 @@ A lightweight todo application that stores tasks in client state.
                         sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+                        var service = CreateService(factory, config, templateRepo, sessionRepo);
 
                         var result = await service.GenerateReadme(sessionId.ToString());
 
@@ -534,7 +543,7 @@ A lightweight notes board for client-side note taking.
                         sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
                                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+                        var service = CreateService(factory, config, templateRepo, sessionRepo);
 
                         var result = await service.GenerateReadme(sessionId.ToString());
 
@@ -683,7 +692,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
             var templateRepo = Substitute.For<IRepository<Template, int>>();
             templateRepo.GetAllListAsync().Returns(new List<Template>());
-            var service = new CodeGenAppService(factory, config, templateRepo);
+            var service = CreateService(factory, config, templateRepo);
             var request = new CreateUpdateProjectDto
             {
                 Id = 1,
@@ -808,7 +817,7 @@ export const db = {};
 
             var templateRepo = Substitute.For<IRepository<Template, int>>();
             templateRepo.GetAllListAsync().Returns(new List<Template>());
-            var service = new CodeGenAppService(factory, config, templateRepo);
+            var service = CreateService(factory, config, templateRepo);
             var request = new CreateUpdateProjectDto
             {
                 Id = 2,
@@ -838,6 +847,33 @@ export const db = {};
             Assert.Contains(result.Files, f => f.Path == "src/App.tsx");
             Assert.Contains(result.Files, f => f.Path == "server/index.ts");
             Assert.Contains(result.Files, f => f.Path == "src/lib/db.ts");
+        }
+
+        private CodeGenAppService CreateService(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IRepository<Template, int> templateRepository = null,
+            IRepository<CodeGenSession, Guid> sessionRepository = null)
+        {
+            var claudeClient = Substitute.For<IClaudeApiClient>();
+            var aiService = new CodeGenAiService(httpClientFactory, configuration, claudeClient);
+            var uowManager = Substitute.For<Abp.Domain.Uow.IUnitOfWorkManager>();
+            var sessionManager = new CodeGenSessionManager(sessionRepository, aiService, uowManager);
+            var scaffolder = new CodeGenScaffolder();
+            var validator = new CodeGenValidator();
+            var planner = new CodeGenPlanner(aiService, sessionManager);
+            var engine = new CodeGenEngine(aiService, planner, scaffolder, configuration);
+            var refiner = new CodeGenRefiner(aiService, sessionManager, validator);
+            var scopeFactory = Substitute.For<IServiceScopeFactory>();
+
+            return new CodeGenAppService(
+                sessionManager,
+                engine,
+                planner,
+                refiner,
+                aiService,
+                templateRepository,
+                scopeFactory);
         }
     }
 

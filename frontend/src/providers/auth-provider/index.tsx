@@ -36,12 +36,6 @@ const PROJECT_STORAGE_KEY = "project_created";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
-const clearStoredAuth = () => {
-  removeAuthToken();
-  sessionStorage.removeItem(AUTH_USER_KEY);
-  //sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
-};
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
   const router = useRouter();

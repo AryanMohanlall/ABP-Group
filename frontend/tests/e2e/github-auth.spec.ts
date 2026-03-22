@@ -1,19 +1,6 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Seeds sessionStorage with auth_user but WITHOUT github_oauth_complete,
- * simulating a user who logged in via username/password (not GitHub OAuth).
- */
-const seedAuthWithoutGithub = async (page: import("@playwright/test").Page) => {
-  await page.addInitScript(() => {
-    sessionStorage.setItem(
-      "auth_user",
-      JSON.stringify({ accessToken: "test-token", userId: 1, expireInSeconds: 3600 })
-    );
-  });
-};
-
-/**
  * Seeds sessionStorage with both auth_user AND github_oauth_complete,
  * simulating a user who completed GitHub OAuth.
  */

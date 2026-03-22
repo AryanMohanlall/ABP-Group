@@ -36,7 +36,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     user?.userName ||
     "User";
   const roles = user?.roleNames ?? [];
-  const rolesLabel = roles.length > 0 ? roles.join(", ") : "No role assigned";
   const initials =
     displayName
       .split(" ")
@@ -50,11 +49,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "My Projects",
       icon: FolderIcon,
     },
-    {
+   /*  {
       id: "generate",
       label: "Generate",
       icon: SparklesIcon,
-    },
+    }, */
     {
       id: "templates",
       label: "Templates",
@@ -69,29 +68,9 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   const adminNav = [
     {
-      id: "admin",
-      label: "Overview",
-      icon: BarChart3Icon,
-    },
-    {
-      id: "admin-users",
-      label: "Users",
-      icon: UsersIcon,
-    },
-    {
-      id: "admin-projects",
-      label: "Projects",
-      icon: LayersIcon,
-    },
-    {
       id: "deployments",
       label: "Deployments",
       icon: ServerIcon,
-    },
-    {
-      id: "admin-health",
-      label: "System Health",
-      icon: ActivityIcon,
     },
     {
       id: "github",
@@ -191,6 +170,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <div className={styles.footer}>
           <button
             type="button"
+            onClick={() => onNavigate("settings")}
             className={cx(styles.profileCard, styles.focusRing)}
           >
             <div className={styles.profileInfo}>
@@ -210,6 +190,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 <span className={styles.profileName}>{displayName}</span>
                 <span className={styles.roleBadge}>{user?.roleName}</span>
               </div>
+              <SettingsIcon className={styles.profileActionIcon} />
             </div>
           </button>
 

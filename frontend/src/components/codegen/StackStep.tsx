@@ -4,20 +4,13 @@ import { useEffect, useState } from "react";
 import { Spin, Tooltip, message } from "antd";
 import { CheckIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
 import { motion } from "framer-motion";
-import {
-  useCodeGenAction,
-  useCodeGenState,
-} from "@/providers/codegen-provider";
+import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import type { IStackConfig } from "@/providers/codegen-provider";
-import {
-  useTemplateAction,
-  useTemplateState,
-} from "@/providers/templates-provider";
+import { useTemplateAction, useTemplateState } from "@/providers/templates-provider";
 import { useStyles } from "./StackStep.styles";
 
 export interface ExtraConfig {
   templateId: number | null;
-  projectCategory: string;
 }
 
 interface StackStepProps {
@@ -65,26 +58,12 @@ const STACK_CATEGORIES: StackCategory[] = [
   },
 ];
 
-const EXTRA_CATEGORIES = [
-  {
-    key: "projectCategory",
-    label: "Project Category",
-    options: [
-      "SaaS dashboard",
-      "E-commerce store",
-      "Blog platform",
-      "Portfolio site",
-      "General",
-    ],
-  },
-];
 
 export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
   const { styles, cx } = useStyles();
   const { isPending, recommendation } = useCodeGenState();
   const { recommendStack, saveStack } = useCodeGenAction();
-  const { items: templates, isPending: isLoadingTemplates } =
-    useTemplateState();
+  const { items: templates, isPending: isLoadingTemplates } = useTemplateState();
   const { fetchAll: fetchTemplates } = useTemplateAction();
 
   const [selections, setSelections] = useState<Record<string, string>>({
@@ -95,22 +74,15 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     orm: "",
     auth: "",
   });
-
-  const [extraSelections, setExtraSelections] = useState<
-    Record<string, string>
-  >({
-    projectCategory: "SaaS dashboard",
-  });
-
+  
+  
   const [templateId, setTemplateId] = useState<number | null>(null);
 
   const [reasoning, setReasoning] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetchTemplates({
-      isMyTemplates: true,
-    });
+    fetchTemplates();
   }, [fetchTemplates]);
 
   useEffect(() => {
@@ -125,7 +97,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
             orm: rec.orm,
             auth: rec.auth,
           });
-          setReasoning(rec.reasoning);
+          setReasoning(rec.reasoning || {});
           setLoaded(true);
         })
         .catch(() => {
@@ -139,9 +111,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     setSelections((prev) => ({ ...prev, [category]: value }));
   };
 
-  const handleExtraSelect = (category: string, value: string) => {
-    setExtraSelections((prev) => ({ ...prev, [category]: value }));
-  };
+
 
   const handleConfirm = async () => {
     const stack: IStackConfig = {
@@ -158,29 +128,18 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
       await saveStack(sessionId, stack);
       onNext(stack, {
         templateId,
-        projectCategory: extraSelections.projectCategory,
       });
     } catch {
       message.error("Failed to save stack configuration.");
     }
   };
 
-  const allSelected =
-    STACK_CATEGORIES.every((cat) => selections[cat.key]) &&
-    EXTRA_CATEGORIES.every((cat) => extraSelections[cat.key]);
+  const allSelected = STACK_CATEGORIES.every((cat) => selections[cat.key]);
 
   if (!loaded) {
     return (
       <div className={styles.container}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: 80,
-            gap: 16,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, gap: 16 }}>
           <Spin size="large" />
           <span style={{ color: "var(--ant-color-text-secondary)" }}>
             AI is analyzing your requirements and recommending a stack...
@@ -195,8 +154,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
       <div className={styles.header}>
         <h2 className={styles.title}>Configure your stack</h2>
         <p className={styles.subtitle}>
-          Our AI has recommended the best stack for your project. You can
-          override any choice.
+          Our AI has recommended the best stack for your project. You can override any choice.
         </p>
       </div>
 
@@ -209,8 +167,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
         <div className={styles.templateSection}>
           <div className={styles.sectionLabel}>Start from a template</div>
           <p className={styles.templateHint}>
-            Pick a template to guide the AI, or start from scratch and let it
-            figure out the best structure.
+            Pick a template to guide the AI, or start from scratch and let it figure out the best structure.
           </p>
           <div className={styles.templateGrid}>
             <button
@@ -219,9 +176,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
               className={cx(
                 styles.templateCard,
                 styles.focusRing,
-                templateId === null
-                  ? styles.templateCardSelected
-                  : styles.templateCardDefault,
+                templateId === null ? styles.templateCardSelected : styles.templateCardDefault
               )}
             >
               {templateId === null && (
@@ -232,22 +187,11 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
               <div className={styles.templateCardIcon}>
                 <SparklesIcon style={{ width: 20, height: 20 }} />
               </div>
-              <span className={styles.templateCardName}>
-                Start from scratch
-              </span>
-              <span className={styles.templateCardDesc}>
-                AI decides the best structure
-              </span>
+              <span className={styles.templateCardName}>Start from scratch</span>
+              <span className={styles.templateCardDesc}>AI decides the best structure</span>
             </button>
             {isLoadingTemplates && templates.length === 0 && (
-              <div
-                className={styles.templateCardDesc}
-                style={{
-                  padding: 16,
-                  gridColumn: "1 / -1",
-                  textAlign: "center",
-                }}
-              >
+              <div className={styles.templateCardDesc} style={{ padding: 16, gridColumn: "1 / -1", textAlign: "center" }}>
                 Loading templates...
               </div>
             )}
@@ -259,9 +203,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
                 className={cx(
                   styles.templateCard,
                   styles.focusRing,
-                  templateId === t.id
-                    ? styles.templateCardSelected
-                    : styles.templateCardDefault,
+                  templateId === t.id ? styles.templateCardSelected : styles.templateCardDefault
                 )}
               >
                 {templateId === t.id && (
@@ -277,9 +219,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
                   <span className={styles.templateCardDesc}>{t.category}</span>
                 )}
                 {t.description && (
-                  <span className={styles.templateCardDesc}>
-                    {t.description}
-                  </span>
+                  <span className={styles.templateCardDesc}>{t.description}</span>
                 )}
               </button>
             ))}
@@ -295,9 +235,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
               {category.options.map((option) => {
                 const isSelected = selections[category.key] === option;
                 const isRecommended =
-                  recommendation?.[
-                    category.key as keyof typeof recommendation
-                  ] === option;
+                  recommendation?.[category.key as keyof typeof recommendation] === option;
                 const reasonText = reasoning[category.key];
 
                 return (
@@ -311,7 +249,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
                         styles.selectionCard,
                         isSelected
                           ? styles.selectionCardSelected
-                          : styles.selectionCardDefault,
+                          : styles.selectionCardDefault
                       )}
                       onClick={() => handleSelect(category.key, option)}
                     >
@@ -321,10 +259,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
                         </span>
                       )}
                       {isSelected && (
-                        <CheckIcon
-                          className={styles.selectionCheck}
-                          size={16}
-                        />
+                        <CheckIcon className={styles.selectionCheck} size={16} />
                       )}
                       <span className={styles.selectionLabel}>{option}</span>
                       {isRecommended && reasonText && (
@@ -338,36 +273,6 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
           </div>
         ))}
 
-        <div className={styles.divider} />
-
-        {EXTRA_CATEGORIES.map((category) => (
-          <div key={category.key}>
-            <div className={styles.sectionLabel}>{category.label}</div>
-            <div className={styles.selectionGrid}>
-              {category.options.map((option) => {
-                const isSelected = extraSelections[category.key] === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    className={cx(
-                      styles.selectionCard,
-                      isSelected
-                        ? styles.selectionCardSelected
-                        : styles.selectionCardDefault,
-                    )}
-                    onClick={() => handleExtraSelect(category.key, option)}
-                  >
-                    {isSelected && (
-                      <CheckIcon className={styles.selectionCheck} size={16} />
-                    )}
-                    <span className={styles.selectionLabel}>{option}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
       </motion.div>
 
       <div className={styles.actionRow}>
