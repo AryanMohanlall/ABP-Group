@@ -96,6 +96,8 @@ namespace ABPGroup.Controllers
             _unitOfWorkManager = unitOfWorkManager;
         }
 
+        // ── Status ────────────────────────────────────────────────────────────
+
         [HttpGet("status")]
         public async Task<IActionResult> Status()
         {
@@ -126,6 +128,52 @@ namespace ABPGroup.Controllers
                     message = "GitHub App status check failed.",
                     error = ex.Message
                 });
+            }
+        }
+
+        // ── Repositories ──────────────────────────────────────────────────────
+
+        [HttpGet("repositories")]
+        public async Task<IActionResult> GetRepositories([FromQuery] string installationId = null)
+        {
+            var appId = _configuration["GitHubApp:AppId"];
+            var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];
+            var resolvedInstallationId = installationId ?? _configuration["GitHubApp:InstallationId"];
+            var canUseAppFlow =
+                !string.IsNullOrWhiteSpace(appId) &&
+                !string.IsNullOrWhiteSpace(privateKeyPem) &&
+                !string.IsNullOrWhiteSpace(resolvedInstallationId);
+
+            // Fall back to OAuth user token if GitHub App is not configured
+            if (!canUseAppFlow)
+            {
+                var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+                if (string.IsNullOrWhiteSpace(userGitHubToken))
+                    return BadRequest(new { message = "GitHub OAuth token is missing. Sign in with GitHub first." });
+
+                try
+                {
+                    var userRepos = await _gitHubApiService.GetUserRepositoriesAsync(userGitHubToken);
+                    return Ok(new { count = userRepos.Count, repositories = userRepos });
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("Failed to fetch user repositories.", ex);
+                    return StatusCode(502, new { message = "Failed to fetch repositories.", error = ex.Message });
+                }
+            }
+
+            try
+            {
+                var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
+                    appId, resolvedInstallationId, privateKeyPem);
+                var repositories = await _gitHubApiService.GetInstallationRepositoriesAsync(installationToken);
+                return Ok(new { installationId = resolvedInstallationId, count = repositories.Count, repositories });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("GitHub installation repositories request failed.", ex);
+                return StatusCode(502, new { message = "Failed to query installation repositories.", error = ex.Message });
             }
         }
 
@@ -260,6 +308,8 @@ namespace ABPGroup.Controllers
             }
         }
 
+        // ── Commit & Deploy ───────────────────────────────────────────────────
+
         [HttpPost("commit-generated")]
         public async Task<IActionResult> CommitGenerated([FromBody] CommitGeneratedFilesInput input)
         {
@@ -383,15 +433,10 @@ namespace ABPGroup.Controllers
                                 deploymentResult.ErrorMessage));
                         }
 
-                        // Look up the saved ProjectRepository record directly via repository
-                        // to get the correct internal DB id — not the GitHub numeric id.
                         var projectRepo = await _projectRepositoryRepository.FirstOrDefaultAsync(
                             r => r.ExternalRepositoryId == repoId.ToString());
 
-                        await StoreDeploymentAsync(
-                            project.Id,
-                            projectRepo?.Id ?? 0,
-                            deploymentResult);
+                        await StoreDeploymentAsync(project.Id, projectRepo?.Id ?? 0, deploymentResult);
                     }
                 }
 
@@ -424,6 +469,232 @@ namespace ABPGroup.Controllers
                     message = "Failed to commit and push generated files to GitHub.",
                     error = ex.Message
                 });
+            }
+        }
+
+        // ── Repository data endpoints ─────────────────────────────────────────
+
+        [HttpGet("commits")]
+        public async Task<IActionResult> GetCommits(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] string branch = null,
+            [FromQuery] int perPage = 30)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var commits = await _gitHubApiService.GetCommitsAsync(
+                    userGitHubToken, owner, repo, branch, perPage);
+                return Ok(new { commits });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch commits.", ex);
+                return StatusCode(502, new { message = "Failed to fetch commits.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("branches")]
+        public async Task<IActionResult> GetBranches(
+            [FromQuery] string owner,
+            [FromQuery] string repo)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var branches = await _gitHubApiService.GetBranchesAsync(userGitHubToken, owner, repo);
+                return Ok(new { branches });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch branches.", ex);
+                return StatusCode(502, new { message = "Failed to fetch branches.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("pull-requests")]
+        public async Task<IActionResult> GetPullRequests(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] string state = "open")
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var prs = await _gitHubApiService.GetPullRequestsAsync(userGitHubToken, owner, repo, state);
+                return Ok(new { pullRequests = prs });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch pull requests.", ex);
+                return StatusCode(502, new { message = "Failed to fetch pull requests.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("issues")]
+        public async Task<IActionResult> GetIssues(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] string state = "open")
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var issues = await _gitHubApiService.GetIssuesAsync(userGitHubToken, owner, repo, state);
+                return Ok(new { issues });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch issues.", ex);
+                return StatusCode(502, new { message = "Failed to fetch issues.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("releases")]
+        public async Task<IActionResult> GetReleases(
+            [FromQuery] string owner,
+            [FromQuery] string repo)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var releases = await _gitHubApiService.GetReleasesAsync(userGitHubToken, owner, repo);
+                return Ok(new { releases });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch releases.", ex);
+                return StatusCode(502, new { message = "Failed to fetch releases.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("actions")]
+        public async Task<IActionResult> GetWorkflowRuns(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] int perPage = 10)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var runs = await _gitHubApiService.GetWorkflowRunsAsync(userGitHubToken, owner, repo, perPage);
+                return Ok(new { runs });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch workflow runs.", ex);
+                return StatusCode(502, new { message = "Failed to fetch workflow runs.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("contents")]
+        public async Task<IActionResult> GetContents(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] string path = "")
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var contents = await _gitHubApiService.GetContentsAsync(userGitHubToken, owner, repo, path);
+                return Ok(new { contents });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch contents.", ex);
+                return StatusCode(502, new { message = "Failed to fetch contents.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("file")]
+        public async Task<IActionResult> GetFileContent(
+            [FromQuery] string owner,
+            [FromQuery] string repo,
+            [FromQuery] string path)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo) || string.IsNullOrWhiteSpace(path))
+                return BadRequest(new { message = "owner, repo and path are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var file = await _gitHubApiService.GetFileContentAsync(userGitHubToken, owner, repo, path);
+                return Ok(new { file });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch file content.", ex);
+                return StatusCode(502, new { message = "Failed to fetch file.", error = ex.Message });
+            }
+        }
+
+        [HttpGet("stats/languages")]
+        public async Task<IActionResult> GetLanguages(
+            [FromQuery] string owner,
+            [FromQuery] string repo)
+        {
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+                return BadRequest(new { message = "owner and repo are required." });
+
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(userGitHubToken))
+                return BadRequest(new { message = "GitHub OAuth token is missing." });
+
+            try
+            {
+                var languages = await _gitHubApiService.GetLanguagesAsync(userGitHubToken, owner, repo);
+                return Ok(new { languages });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to fetch languages.", ex);
+                return StatusCode(502, new { message = "Failed to fetch languages.", error = ex.Message });
             }
         }
 
