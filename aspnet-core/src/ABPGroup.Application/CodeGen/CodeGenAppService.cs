@@ -126,7 +126,16 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     public async Task<CodeGenSessionDto> SaveSpec(SaveSpecInput input)
     {
         var session = await _sessionManager.GetSessionAsync(input.SessionId);
-        session.SpecJson = JsonSerializer.Serialize(input.Spec, JsonOptions);
+        
+        // Load existing blueprint to preserve the README markdown
+        var blueprint = await _sessionManager.GetGenerationBlueprintAsync(input.SessionId);
+        var combined = new ReadmeResultDto
+        {
+            Plan = input.Spec,
+            ReadmeMarkdown = blueprint.ReadmeMarkdown ?? ""
+        };
+
+        session.SpecJson = JsonSerializer.Serialize(combined, JsonOptions);
         session.SpecConfirmedAt = DateTime.UtcNow;
         session.Status = (int)CodeGenStatus.SpecConfirmed;
         session.UpdatedAt = DateTime.UtcNow;

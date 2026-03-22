@@ -130,6 +130,10 @@ If any answer is no, fix it before returning.";
 - Auth: {stack.Auth}
 " : string.Empty;
 
+        var entitiesStr = string.Join(", ", spec?.Entities?.Select(e => e.Name) ?? new List<string>());
+        var pagesStr = string.Join(", ", spec?.Pages?.Select(p => p.Route) ?? new List<string>());
+        var apiRoutesStr = string.Join(", ", spec?.ApiRoutes?.Select(r => r.Method + " " + r.Path) ?? new List<string>());
+
         return $@"You are a principal full-stack engineer generating {layerDescription} for a custom application.
 
 {stackInfo}
@@ -138,9 +142,9 @@ APPROVED README (Source of Truth for Project Structure):
 {approvedReadme}
 
 SPECIFICATION:
-Entities: {string.Join(", ", spec?.Entities?.Select(e => e.Name) ?? new List<string>())}
-Pages: {string.Join(", ", spec?.Pages?.Select(p => p.Route) ?? new List<string>())}
-API Routes: {string.Join(", ", spec?.ApiRoutes?.Select(r => $"{r.Method} {r.Path}") ?? new List<string>())}
+Entities: {entitiesStr}
+Pages: {pagesStr}
+API Routes: {apiRoutesStr}
 
 NON-NEGOTIABLE RULES:
 1. YOU ARE GENERATING THIS PROJECT FROM SCRATCH. Do NOT assume any files (like package.json, prisma.schema, layouts, or configs) exist unless you create them.
@@ -148,8 +152,9 @@ NON-NEGOTIABLE RULES:
 3. Every import must resolve. Every file you reference must be created in your output.
 4. YOUR CODE WILL BE IMMEDIATELY BUILT (npm run build / dotnet build) ON THE SERVER. Any syntax error, missing dependency in package.json, or broken import will fail the validation and your work will be rejected.
 5. NO TODOs, placeholders, or partial snippets. Full file content only.
-6. Use modern, production-grade patterns (e.g. Next.js App Router, Zod validation, Prisma, etc.) consistent with the stack.
-7. Ensure the README file itself is never deleted; if you modify it, maintain the agreed folder structure.
+6. BE GENEROUS WITH CODE. Minimal skeletons or ""Hello World"" implementations are strictly forbidden. Implement full business logic, comprehensive UI components with Ant Design, complete data schemas, and detailed error handling for Every feature in the spec.
+7. Use modern, production-grade patterns (e.g. Next.js App Router, Zod validation, Prisma, etc.) consistent with the stack.
+8. Ensure the README file itself is never deleted; if you modify it, maintain the agreed folder structure.
 
 RETURN FORMAT:
 ===ARCHITECTURE===
