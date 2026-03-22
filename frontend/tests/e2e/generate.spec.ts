@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test } from "@playwright/test";
 
 const seedAuth = async (page: import("@playwright/test").Page) => {
   await page.addInitScript(() => {
@@ -89,21 +89,3 @@ const mockSaveStack = (page: import("@playwright/test").Page) =>
       }),
     })
   );
-
-test.describe("Generate page - Capture step", () => {
-  test.beforeEach(async ({ page }) => {
-    await seedAuth(page);
-    await mockCreateSession(page);
-  });
-
-
-});
-
-test.describe("Generate page - Stack step", () => {
-  test.beforeEach(async ({ page }) => {
-    await seedAuth(page);
-    await mockCreateSession(page);
-    await mockRecommendStack(page);
-    await mockSaveStack(page);
-  });
-});
