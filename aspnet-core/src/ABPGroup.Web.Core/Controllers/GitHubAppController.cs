@@ -348,7 +348,10 @@ namespace ABPGroup.Controllers
                 });
             }
 
-            var outputBase = _configuration["CodeGen:OutputPath"] ?? "/tmp/GeneratedApps";
+            // Use same fallback as CodeGenEngine for consistency
+            var outputBase = _configuration["CodeGen:OutputPath"]
+                ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
+
             var projectDir = ResolveExistingProjectDirectory(outputBase, project.Name);
             if (string.IsNullOrWhiteSpace(projectDir))
             {
@@ -856,15 +859,28 @@ namespace ABPGroup.Controllers
             if (string.IsNullOrWhiteSpace(outputBase) || string.IsNullOrWhiteSpace(projectName))
                 return null;
 
+            // Normalize outputBase for Windows
+            if (!Path.IsPathRooted(outputBase) && outputBase.StartsWith("/"))
+            {
+                // Convert "/tmp/..." to "C:\tmp\..." or similar on Windows
+                outputBase = Path.GetFullPath(outputBase);
+            }
+
             var candidates = new List<string>
             {
                 Path.Combine(outputBase, projectName.Trim()),
-                Path.Combine(outputBase, SanitizeDirName(projectName))
+                Path.Combine(outputBase, SanitizeDirName(projectName)),
+                // Also check if it's already a full path
+                projectName
             };
 
             foreach (var candidate in candidates)
             {
-                if (Directory.Exists(candidate)) return candidate;
+                try
+                {
+                    if (Directory.Exists(candidate)) return Path.GetFullPath(candidate);
+                }
+                catch { /* ignore invalid paths */ }
             }
 
             return null;

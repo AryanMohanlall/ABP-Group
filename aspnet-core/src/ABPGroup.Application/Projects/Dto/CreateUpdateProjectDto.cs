@@ -34,4 +34,5 @@ public class CreateUpdateProjectDto : EntityDto<long>
     public ProjectStatus Status { get; set; } = ProjectStatus.Draft;
 
     public int? TemplateId { get; set; }
+    public string SessionId { get; set; }
 }

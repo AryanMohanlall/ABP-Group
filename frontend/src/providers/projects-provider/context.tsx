@@ -65,6 +65,7 @@ export interface IProjectCreateInput {
   includeAuth: boolean;
   status?: ProjectStatus;
   templateId?: number;
+  sessionId?: string;
 }
 
 export interface IProjectUpdateInput extends IProjectCreateInput {

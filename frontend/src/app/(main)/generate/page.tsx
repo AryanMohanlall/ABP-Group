@@ -97,6 +97,7 @@ export default function GeneratePage() {
         includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
         status: ProjectStatus.CodeGenerationCompleted,
         templateId: extraConfig?.templateId ?? undefined,
+        sessionId: session.id,
       });
 
       sessionStorage.setItem("generatingProjectId", String(project.id));
@@ -128,6 +129,7 @@ export default function GeneratePage() {
         includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
         status: ProjectStatus.CodeGenerationCompleted,
         templateId: extraConfig?.templateId ?? undefined,
+        sessionId: session.id,
       });
 
       router.push("/projects");

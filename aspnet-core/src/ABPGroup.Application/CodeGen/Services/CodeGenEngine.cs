@@ -182,7 +182,17 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         var files = CodeGenHelpers.ParseFiles(layerResponse);
         foreach (var file in files)
         {
-            result.Files.Add(new GeneratedFile { Path = file.Path, Content = file.Content });
+            var existing = result.Files.FirstOrDefault(f => 
+                string.Equals(CodeGenHelpers.NormalizeFilePath(f.Path), CodeGenHelpers.NormalizeFilePath(file.Path), StringComparison.OrdinalIgnoreCase));
+            
+            if (existing != null)
+            {
+                existing.Content = file.Content;
+            }
+            else
+            {
+                result.Files.Add(new GeneratedFile { Path = file.Path, Content = file.Content });
+            }
         }
         
         result.ModuleList.AddRange(CodeGenHelpers.ParseModules(layerResponse));

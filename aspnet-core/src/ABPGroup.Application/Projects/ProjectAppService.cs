@@ -7,10 +7,15 @@ using ABPGroup.MultiTenancy;
 using ABPGroup.CodeGen;
 using ABPGroup.Projects.Dto;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Dynamic.Core;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using ABPGroup.CodeGen.Dto;
 
 namespace ABPGroup.Projects;
 
@@ -20,19 +25,28 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
     private readonly IRepository<Tenant, int> _tenantRepository;
     private readonly TenantManager _tenantManager;
     private readonly ICodeGenAppService _codeGenAppService;
+    private readonly ICodeGenSessionManager _sessionManager;
+    private readonly ICodeGenScaffolder _scaffolder;
+    private readonly IConfiguration _configuration;
 
     public ProjectAppService(
         IRepository<Project, long> repository,
         IRepository<Prompt, long> promptRepository,
         IRepository<Tenant, int> tenantRepository,
         TenantManager tenantManager,
-        ICodeGenAppService codeGenAppService)
+        ICodeGenAppService codeGenAppService,
+        ICodeGenSessionManager sessionManager,
+        ICodeGenScaffolder scaffolder,
+        IConfiguration configuration)
         : base(repository)
     {
         _promptRepository = promptRepository;
         _tenantRepository = tenantRepository;
         _tenantManager = tenantManager;
         _codeGenAppService = codeGenAppService;
+        _sessionManager = sessionManager;
+        _scaffolder = scaffolder;
+        _configuration = configuration;
         GetPermissionName = null;
         GetAllPermissionName = null;
         CreatePermissionName = null;
@@ -106,8 +120,53 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
             Logger.Info($"Queuing background code generation for project: {input.Name} ({entity.Id}).");
             StartCodeGenInBackground(entity.Id, input);
         }
+        else if (entity.Status == ProjectStatus.CodeGenerationCompleted && !string.IsNullOrEmpty(input.SessionId))
+        {
+            // If project is created from a session that already finished generation,
+            // ensure the files are written to the project's output directory.
+            await WriteSessionFilesToProjectDir(entity, input.SessionId);
+        }
 
         return MapToEntityDto(entity);
+    }
+
+    private async Task WriteSessionFilesToProjectDir(Project project, string sessionId)
+    {
+        try
+        {
+            var session = await _sessionManager.GetSessionAsync(sessionId);
+            if (string.IsNullOrEmpty(session.GeneratedFilesJson))
+            {
+                Logger.Warn($"WriteSessionFilesToProjectDir: Session {sessionId} has no generated files.");
+                return;
+            }
+
+            var files = JsonSerializer.Deserialize<List<GeneratedFileDto>>(session.GeneratedFilesJson, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (files == null || files.Count == 0) return;
+
+            var outputBase = _configuration["CodeGen:OutputPath"]
+                ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
+            var outputPath = Path.Combine(outputBase, project.Name);
+
+            Logger.Info($"WriteSessionFilesToProjectDir: Persisting {files.Count} files to {outputPath} for project {project.Id}");
+            
+            var generatedFiles = files.Select(f => new GeneratedFile 
+            { 
+                Path = f.Path, 
+                Content = f.Content 
+            }).ToList();
+
+            _scaffolder.WriteFilesToDisk(generatedFiles, outputPath);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"WriteSessionFilesToProjectDir: Failed to write session files for project {project.Id}", ex);
+        }
     }
 
     private void StartCodeGenInBackground(long projectId, CreateUpdateProjectDto input)

@@ -131,8 +131,28 @@ APPROVED README:
 SPECIFICATION:
 Entities: {string.Join(", ", spec?.Entities?.Select(e => e.Name) ?? new List<string>())}
 Pages: {string.Join(", ", spec?.Pages?.Select(p => p.Route) ?? new List<string>())}
+API Routes: {string.Join(", ", spec?.ApiRoutes?.Select(r => $"{r.Method} {r.Path}") ?? new List<string>())}
 
-Follow the architecture defined in the scaffold and README.";
+NON-NEGOTIABLE RULES:
+1. Generate real, working code only. No placeholders or TODOs.
+2. Every import must resolve.
+3. Use the architecture defined in the scaffold and README.
+
+RETURN FORMAT:
+===ARCHITECTURE===
+<brief description>
+===END ARCHITECTURE===
+
+===MODULES===
+<comma-separated names>
+===END MODULES===
+
+Then for EACH file:
+===FILE===
+<path relative to root>
+===CONTENT===
+<full content>
+===END FILE===";
     }
 
     public static string BuildLayerUserPrompt(
