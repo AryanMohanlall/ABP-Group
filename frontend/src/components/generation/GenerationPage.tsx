@@ -390,7 +390,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   const handleDeploy = async () => {
     if (!isGithubConnected) {
-      setDeployError("GitHub must be connected before deploying. Please complete GitHub OAuth first.");
+      setDeployError(
+        "GitHub must be connected before deploying. Please complete GitHub OAuth first.",
+      );
       return;
     }
 
@@ -424,6 +426,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         isPrivate: true,
         autoInit: true,
         owner: configuredOwner || undefined,
+        projectId: project.id,
       });
 
       const repository = response.data.repository;

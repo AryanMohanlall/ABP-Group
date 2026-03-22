@@ -13,7 +13,6 @@ namespace ABPGroup.Deployments
     /// <summary>
     /// Manages deployments of project repositories to hosting targets.
     /// </summary>
-    [AbpAuthorize(PermissionNames.Pages_Deployments)]
     public class DeploymentAppService
         : AsyncCrudAppService<Deployment, DeploymentDto, long, PagedDeploymentResultRequestDto, CreateUpdateDeploymentDto, CreateUpdateDeploymentDto>,
           IDeploymentAppService

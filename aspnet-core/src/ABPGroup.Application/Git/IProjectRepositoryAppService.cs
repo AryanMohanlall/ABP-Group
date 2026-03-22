@@ -9,5 +9,6 @@ namespace ABPGroup.Git
         : IAsyncCrudAppService<ProjectRepositoryDto, long, PagedProjectRepositoryResultRequestDto, CreateUpdateProjectRepositoryDto, CreateUpdateProjectRepositoryDto>
     {
         Task<List<ProjectRepositoryDto>> GetByProjectId(long projectId);
+        Task<ProjectRepositoryDto> GetByExternalIdAsync(string externalId);
     }
 }

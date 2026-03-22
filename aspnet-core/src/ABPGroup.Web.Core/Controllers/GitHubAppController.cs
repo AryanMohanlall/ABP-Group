@@ -1,7 +1,10 @@
 using Abp.Authorization;
 using Abp.Domain.Repositories;
+using Abp.Domain.Uow;
 using ABPGroup.Authentication.External.GitHub;
-using ABPGroup.Deployment.Vercel;
+using ABPGroup.VercelDeployment;
+using ABPGroup.Deployments;
+using ABPGroup.Git;
 using ABPGroup.Projects;
 using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +43,7 @@ namespace ABPGroup.Controllers
             public bool AutoInit { get; set; } = true;
             public string Owner { get; set; }
             public string InstallationId { get; set; }
+            public long ProjectId { get; set; }
         }
 
         public class CommitGeneratedFilesInput
@@ -66,6 +70,9 @@ namespace ABPGroup.Controllers
         private readonly IVercelDeploymentPolicy _vercelDeploymentPolicy;
         private readonly IRepository<User, long> _userRepository;
         private readonly IRepository<Project, long> _projectRepository;
+        private readonly IRepository<ProjectRepository, long> _projectRepositoryRepository;
+        private readonly IRepository<Deployment, long> _deploymentRepository;
+        private readonly IUnitOfWorkManager _unitOfWorkManager;
 
         public GitHubAppController(
             IConfiguration configuration,
@@ -73,7 +80,10 @@ namespace ABPGroup.Controllers
             IVercelDeploymentService vercelDeploymentService,
             IVercelDeploymentPolicy vercelDeploymentPolicy,
             IRepository<User, long> userRepository,
-            IRepository<Project, long> projectRepository)
+            IRepository<Project, long> projectRepository,
+            IRepository<ProjectRepository, long> projectRepositoryRepository,
+            IRepository<Deployment, long> deploymentRepository,
+            IUnitOfWorkManager unitOfWorkManager)
         {
             _configuration = configuration;
             _gitHubApiService = gitHubApiService;
@@ -81,6 +91,9 @@ namespace ABPGroup.Controllers
             _vercelDeploymentPolicy = vercelDeploymentPolicy;
             _userRepository = userRepository;
             _projectRepository = projectRepository;
+            _projectRepositoryRepository = projectRepositoryRepository;
+            _deploymentRepository = deploymentRepository;
+            _unitOfWorkManager = unitOfWorkManager;
         }
 
         [HttpGet("status")]
@@ -199,6 +212,15 @@ namespace ABPGroup.Controllers
                         installationToken, input.Name, input.IsPrivate,
                         input.Description, input.AutoInit, owner);
 
+                    await StoreRepositoryAsync(
+                        input.ProjectId,
+                        appRepository.FullName?.Split('/')[0] ?? owner,
+                        appRepository.Name,
+                        appRepository.FullName,
+                        appRepository.HtmlUrl,
+                        appRepository.Id.ToString(),
+                        input.IsPrivate);
+
                     return Ok(new { created = true, authMode = "github-app", repository = appRepository });
                 }
 
@@ -217,6 +239,15 @@ namespace ABPGroup.Controllers
                 var oauthRepository = await _gitHubApiService.CreateRepositoryWithUserTokenAsync(
                     userGitHubToken, input.Name, input.IsPrivate,
                     input.Description, input.AutoInit, input.Owner);
+
+                await StoreRepositoryAsync(
+                    input.ProjectId,
+                    oauthRepository.FullName?.Split('/')[0] ?? input.Owner,
+                    oauthRepository.Name,
+                    oauthRepository.FullName,
+                    oauthRepository.HtmlUrl,
+                    oauthRepository.Id.ToString(),
+                    input.IsPrivate);
 
                 return Ok(new { created = true, authMode = "oauth-user", repository = oauthRepository });
             }
@@ -238,6 +269,15 @@ namespace ABPGroup.Controllers
 
                             var existingRepository = await _gitHubApiService
                                 .GetRepositoryWithUserTokenAsync(token, owner, input.Name);
+
+                            await StoreRepositoryAsync(
+                                input.ProjectId,
+                                existingRepository.FullName?.Split('/')[0] ?? owner,
+                                existingRepository.Name,
+                                existingRepository.FullName,
+                                existingRepository.HtmlUrl,
+                                existingRepository.Id.ToString(),
+                                existingRepository.Private);
 
                             return Ok(new
                             {
@@ -338,11 +378,9 @@ namespace ABPGroup.Controllers
 
                 if (deploymentDecision.ShouldDeploy)
                 {
-                    // Resolve the numeric GitHub repoId — required by Vercel API
                     var repoId = input.RepoId;
                     if (repoId <= 0)
                     {
-                        // Not provided in the request — fetch it from GitHub
                         try
                         {
                             repoId = await _gitHubApiService.GetRepositoryIdAsync(
@@ -361,7 +399,6 @@ namespace ABPGroup.Controllers
                         }
                     }
 
-                    // Only deploy if we have a valid repoId
                     if (repoId > 0 && deploymentResult == null)
                     {
                         deploymentResult = await _vercelDeploymentService.TriggerDeploymentAsync(
@@ -389,6 +426,16 @@ namespace ABPGroup.Controllers
                                 repositoryFullName,
                                 deploymentResult.ErrorMessage));
                         }
+
+                        // Look up the saved ProjectRepository record directly via repository
+                        // to get the correct internal DB id — not the GitHub numeric id.
+                        var projectRepo = await _projectRepositoryRepository.FirstOrDefaultAsync(
+                            r => r.ExternalRepositoryId == repoId.ToString());
+
+                        await StoreDeploymentAsync(
+                            project.Id,
+                            projectRepo?.Id ?? 0,
+                            deploymentResult);
                     }
                 }
 
@@ -424,7 +471,75 @@ namespace ABPGroup.Controllers
             }
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // ── Persistence helpers ───────────────────────────────────────────────
+
+        private async Task StoreRepositoryAsync(
+            long projectId,
+            string owner,
+            string name,
+            string fullName,
+            string htmlUrl,
+            string externalRepositoryId,
+            bool isPrivate)
+        {
+            try
+            {
+                await _projectRepositoryRepository.InsertAsync(new ProjectRepository
+                {
+                    ProjectId = projectId,
+                    Provider = GitProvider.GitHub,
+                    Owner = owner,
+                    Name = name,
+                    FullName = fullName,
+                    DefaultBranch = "main",
+                    Visibility = isPrivate ? RepositoryVisibility.Private : RepositoryVisibility.Public,
+                    HtmlUrl = htmlUrl,
+                    ExternalRepositoryId = externalRepositoryId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+
+                await CurrentUnitOfWork.SaveChangesAsync();
+                Logger.Info($"Stored ProjectRepository for {fullName}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to store ProjectRepository for {fullName}: {ex.Message}", ex);
+            }
+        }
+
+        private async Task StoreDeploymentAsync(
+            long projectId,
+            long projectRepositoryId,
+            VercelDeploymentResult deploymentResult)
+        {
+            try
+            {
+                await _deploymentRepository.InsertAsync(new Deployment
+                {
+                    ProjectId = projectId,
+                    ProjectRepositoryId = projectRepositoryId,
+                    Target = DeploymentTarget.Vercel,
+                    EnvironmentName = "production",
+                    Status = deploymentResult.Triggered
+                        ? DeploymentStatus.InProgress
+                        : DeploymentStatus.Failed,
+                    Url = deploymentResult.Url,
+                    ProviderDeploymentId = deploymentResult.DeploymentId,
+                    ErrorMessage = deploymentResult.ErrorMessage,
+                    TriggeredAt = DateTime.UtcNow
+                });
+
+                await CurrentUnitOfWork.SaveChangesAsync();
+                Logger.Info($"Stored Deployment record for project {projectId}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to store Deployment for project {projectId}: {ex.Message}", ex);
+            }
+        }
+
+        // ── Other helpers ─────────────────────────────────────────────────────
 
         private static void ResolveOwnerAndRepository(
             string repositoryFullName, ref string owner, ref string repository)

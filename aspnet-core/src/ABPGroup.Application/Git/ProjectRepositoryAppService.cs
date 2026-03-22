@@ -13,11 +13,11 @@ namespace ABPGroup.Git
     /// <summary>
     /// Manages Git repositories linked to projects.
     /// </summary>
-    [AbpAuthorize(PermissionNames.Pages_ProjectRepositories)]
     public class ProjectRepositoryAppService
         : AsyncCrudAppService<ProjectRepository, ProjectRepositoryDto, long, PagedProjectRepositoryResultRequestDto, CreateUpdateProjectRepositoryDto, CreateUpdateProjectRepositoryDto>,
           IProjectRepositoryAppService
     {
+
         public ProjectRepositoryAppService(IRepository<ProjectRepository, long> repository) : base(repository)
         {
             CreatePermissionName = PermissionNames.Pages_ProjectRepositories_Create;
@@ -25,6 +25,11 @@ namespace ABPGroup.Git
             DeletePermissionName = PermissionNames.Pages_ProjectRepositories_Delete;
         }
 
+        public async Task<ProjectRepositoryDto> GetByExternalIdAsync(string externalId)
+        {
+            var repo = await Repository.FirstOrDefaultAsync(x => x.ExternalRepositoryId == externalId);
+            return repo == null ? null : ObjectMapper.Map<ProjectRepositoryDto>(repo);
+        }
         protected override IQueryable<ProjectRepository> CreateFilteredQuery(PagedProjectRepositoryResultRequestDto input)
         {
             return Repository.GetAll()
