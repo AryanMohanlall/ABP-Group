@@ -19,7 +19,7 @@ namespace ABPGroup.Web.Host.Controllers
 
         public IActionResult Index()
         {
-            return Redirect("/swagger");
+            return Ok("Healthy");
         }
 
         /// <summary>

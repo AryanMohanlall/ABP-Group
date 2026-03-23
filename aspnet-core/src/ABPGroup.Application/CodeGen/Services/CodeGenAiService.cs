@@ -82,7 +82,7 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
                     generationConfig = new
                     {
                         temperature = 0.7,
-                        maxOutputTokens = 8192,
+                        maxOutputTokens = 65536,
                         response_mime_type = responseMimeType ?? "text/plain"
                     }
                 };
