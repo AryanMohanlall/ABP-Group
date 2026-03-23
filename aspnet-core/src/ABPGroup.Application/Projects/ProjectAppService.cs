@@ -219,6 +219,15 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                             var modules = string.Join(",", codeGenResult.ModuleList);
                             project.GeneratedModules = modules.Length > 500 ? modules[..497] + "..." : modules;
                         }
+                        
+                        if (codeGenResult.ValidationResults?.Count > 0)
+                        {
+                            project.ValidationResultsJson = JsonSerializer.Serialize(codeGenResult.ValidationResults, new JsonSerializerOptions
+                            {
+                                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                                PropertyNameCaseInsensitive = true
+                            });
+                        }
                     }
                     project.Status = ProjectStatus.CodeGenerationCompleted;
                     project.StatusMessage = "Code generation completed";
@@ -366,5 +375,27 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         await CurrentUnitOfWork.SaveChangesAsync();
 
         return tenant.Id;
+    }
+
+    protected override ProjectDto MapToEntityDto(Project entity)
+    {
+        var dto = base.MapToEntityDto(entity);
+        if (!string.IsNullOrEmpty(entity.ValidationResultsJson))
+        {
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    PropertyNameCaseInsensitive = true
+                };
+                dto.ValidationResults = JsonSerializer.Deserialize<List<ValidationResultDto>>(entity.ValidationResultsJson, options);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("Failed to deserialize ValidationResultsJson for project " + entity.Id, ex);
+            }
+        }
+        return dto;
     }
 }

@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Abp.Dependency;
+using Abp.Domain.Services;
 using ABPGroup.CodeGen.Dto;
 
 namespace ABPGroup.CodeGen;
 
-public interface ICodeGenEngine : ITransientDependency
+public interface ICodeGenEngine : IDomainService
 {
     Task<CodeGenResult> GenerateProjectAsync(
         CodeGenEngineInput input,
@@ -15,7 +16,8 @@ public interface ICodeGenEngine : ITransientDependency
         Func<string, Task> onProgress,
         string currentDir = null,
         AppSpecDto approvedPlan = null,
-        string approvedReadme = null);
+        string approvedReadme = null,
+        string sessionId = null);
 
     Task<string> GenerateLayerAsync(
         string progressLabel,
@@ -27,7 +29,8 @@ public interface ICodeGenEngine : ITransientDependency
         AppSpecDto approvedPlan,
         string scaffoldBaseline,
         string approvedReadme,
-        Func<string, Task> onProgress);
+        Func<string, Task> onProgress,
+        string existingLayerMetadata = null);
 
     string BuildScaffoldBaseline(List<GeneratedFile> files);
     

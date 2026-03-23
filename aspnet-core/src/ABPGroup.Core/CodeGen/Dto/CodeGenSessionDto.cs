@@ -27,4 +27,5 @@ public class CodeGenSessionDto
     public string GenerationMode { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string OutputPath { get; set; }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Abp.Dependency;
 using Abp.Domain.Services;
@@ -19,6 +20,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
     private readonly ICodeGenPlanner _planner;
     private readonly ICodeGenScaffolder _scaffolder;
     private readonly ICodeGenBuildValidator _buildValidator;
+    private readonly ICodeGenSessionManager _sessionManager;
     private readonly IConfiguration _configuration;
 
     public CodeGenEngine(
@@ -26,12 +28,14 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         ICodeGenPlanner planner,
         ICodeGenScaffolder scaffolder,
         ICodeGenBuildValidator buildValidator,
+        ICodeGenSessionManager sessionManager,
         IConfiguration configuration)
     {
         _aiService = aiService;
         _planner = planner;
         _scaffolder = scaffolder;
         _buildValidator = buildValidator;
+        _sessionManager = sessionManager;
         _configuration = configuration;
     }
 
@@ -41,7 +45,8 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         Func<string, Task> onProgress,
         string currentDir = null,
         AppSpecDto approvedPlan = null,
-        string approvedReadme = null)
+        string approvedReadme = null,
+        string sessionId = null)
     {
         var result = new CodeGenResult
         {
@@ -54,6 +59,21 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         var outputPath = BuildOutputPath(projectName);
         var rawApprovedPlan = approvedPlan ?? new AppSpecDto();
         
+        // Persist OutputPath to session if available
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            try
+            {
+                var session = await _sessionManager.GetSessionAsync(sessionId);
+                session.OutputPath = outputPath;
+                await _sessionManager.SaveSessionAsync(session);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Failed to save OutputPath to session {sessionId}: {ex.Message}");
+            }
+        }
+
         var requirements = await _planner.LoadRequirementsSnapshotAsync(input, rawApprovedPlan, approvedReadme, onProgress);
         var normalizedPlan = CodeGenHelpers.NormalizeSpec(rawApprovedPlan);
 
@@ -66,19 +86,25 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         var scaffoldBaseline = BuildScaffoldBaseline(result.Files);
         var context = BuildGenerationContext(projectName, input, requirements, approvedReadme);
 
-        var frontendResponse = await GenerateLayerAsync(
-            "[3/5] Generating frontend...",
-            "frontend pages and components",
-            "Generate the frontend code",
+        string cumulativeMetadata = "";
+
+        // 1. Database/Schema Layer
+        var databaseResponse = await GenerateLayerAsync(
+            "[3/5] Generating database layer...",
+            "database schema and data access layer",
+            "Generate the database layer",
             input,
             stack,
             context,
             normalizedPlan,
             scaffoldBaseline,
             approvedReadme,
-            onProgress);
-        MergeLayerResponse(result, frontendResponse, true);
+            onProgress,
+            cumulativeMetadata);
+        MergeLayerResponse(result, databaseResponse, false);
+        cumulativeMetadata += CodeGenHelpers.ExtractLayerMetadata(result.Files);
 
+        // 2. Backend API Layer
         var backendResponse = await GenerateLayerAsync(
             "[4/5] Generating backend...",
             "backend API routes and server logic",
@@ -89,21 +115,25 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             normalizedPlan,
             scaffoldBaseline,
             approvedReadme,
-            onProgress);
+            onProgress,
+            cumulativeMetadata);
         MergeLayerResponse(result, backendResponse, false);
+        cumulativeMetadata += CodeGenHelpers.ExtractLayerMetadata(result.Files);
 
-        var databaseResponse = await GenerateLayerAsync(
-            "[5/5] Generating database layer...",
-            "database schema and data access layer",
-            "Generate the database layer",
+        // 3. Frontend UI Layer
+        var frontendResponse = await GenerateLayerAsync(
+            "[5/5] Generating frontend...",
+            "frontend pages and components",
+            "Generate the frontend code",
             input,
             stack,
             context,
             normalizedPlan,
             scaffoldBaseline,
             approvedReadme,
-            onProgress);
-        MergeLayerResponse(result, databaseResponse, false);
+            onProgress,
+            cumulativeMetadata);
+        MergeLayerResponse(result, frontendResponse, true);
 
         result.OutputPath = outputPath;
         _scaffolder.WriteFilesToDisk(result.Files, outputPath);
@@ -123,6 +153,22 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         if (!buildResult.Success)
         {
             Logger.Warn($"Build validation failed for project {input.Id}. Errors: {string.Join(", ", buildResult.Errors)}");
+            
+            // Hard Validation: Update session status to failed
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                try
+                {
+                    var session = await _sessionManager.GetSessionAsync(sessionId);
+                    session.Status = (int)CodeGenStatus.ValidationFailed;
+                    session.ValidationResultsJson = JsonSerializer.Serialize(result.ValidationResults);
+                    await _sessionManager.SaveSessionAsync(session);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to update session status on build failure: {ex.Message}");
+                }
+            }
         }
         else
         {
@@ -142,13 +188,14 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         AppSpecDto approvedPlan,
         string scaffoldBaseline,
         string approvedReadme,
-        Func<string, Task> onProgress)
+        Func<string, Task> onProgress,
+        string existingLayerMetadata = null)
     {
         await Task.Delay(CodeGenConstants.GenerationPhaseDelayMilliseconds);
         if (onProgress != null) await onProgress(progressLabel);
 
         return await _aiService.CallAiAsync(
-            GeneratorPrompts.BuildCodeGenSystemPrompt(layerDescription, approvedPlan, stack, scaffoldBaseline, approvedReadme),
+            GeneratorPrompts.BuildCodeGenSystemPrompt(layerDescription, approvedPlan, stack, scaffoldBaseline, approvedReadme, existingLayerMetadata),
             GeneratorPrompts.BuildLayerUserPrompt(userInstruction, context, input.Prompt, approvedReadme));
     }
 
@@ -158,13 +205,31 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             return string.Empty;
 
         var baseline = new StringBuilder();
+        var currentLength = 0;
 
-        foreach (var file in files
-            .OrderBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
-            .Take(CodeGenConstants.ScaffoldBaselineFileLimit))
+        // Implementation of Structural Pruning:
+        // 1. Always keep the first few critical files in full (e.g. README, package.json, main layout).
+        // 2. If the baseline exceeds the threshold, switch to "Structural Summary" for remaining files.
+        
+        var criticalFiles = files
+            .Where(f => f.Path.Contains("package.json", StringComparison.OrdinalIgnoreCase) || 
+                        f.Path.Contains("layout.tsx", StringComparison.OrdinalIgnoreCase) ||
+                        f.Path.Contains("README.md", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var otherFiles = files.Except(criticalFiles).OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToList();
+        var sortedFiles = criticalFiles.Concat(otherFiles).ToList();
+
+        foreach (var file in sortedFiles.Take(CodeGenConstants.ScaffoldBaselineFileLimit))
         {
-            if (baseline.Length >= CodeGenConstants.ScaffoldBaselineTotalLength)
+            if (currentLength >= CodeGenConstants.ScaffoldBaselineTotalLength)
+            {
+                // Threshold exceeded: Switch to structural summary for remaining files
+                var remainingFiles = sortedFiles.SkipWhile(f => f != file).ToList();
+                baseline.AppendLine("--- BASELINE THRESHOLD EXCEEDED: REMAINING FILES SUMMARIZED ---");
+                baseline.AppendLine(CodeGenHelpers.SummarizeStructuralFiles(remainingFiles));
                 break;
+            }
 
             var snippet = file.Content ?? string.Empty;
             if (snippet.Length > CodeGenConstants.ScaffoldBaselineSnippetLength)
@@ -173,6 +238,8 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             baseline.AppendLine($"FILE: {file.Path}");
             baseline.AppendLine(snippet);
             baseline.AppendLine("===END BASELINE FILE===");
+            
+            currentLength += snippet.Length;
         }
 
         return baseline.ToString();
@@ -207,8 +274,11 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
 
     public void MergeLayerResponse(CodeGenResult result, string layerResponse, bool allowArchitectureOverride)
     {
-        var files = CodeGenHelpers.ParseFiles(layerResponse);
-        foreach (var file in files)
+        // Parse using new JSON envelope format (with legacy fallback)
+        var output = CodeGenHelpers.ParseGeneratorOutput(layerResponse);
+
+        // Merge files
+        foreach (var file in output.Files)
         {
             var existing = result.Files.FirstOrDefault(f => 
                 string.Equals(CodeGenHelpers.NormalizeFilePath(f.Path), CodeGenHelpers.NormalizeFilePath(file.Path), StringComparison.OrdinalIgnoreCase));
@@ -222,21 +292,145 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
                 result.Files.Add(new GeneratedFile { Path = file.Path, Content = file.Content });
             }
         }
-        
-        result.ModuleList.AddRange(CodeGenHelpers.ParseModules(layerResponse));
 
+        // Merge modules
+        if (output.Modules != null && output.Modules.Count > 0)
+        {
+            result.ModuleList.AddRange(output.Modules);
+        }
+
+        // Store self-check results
+        if (output.SelfCheck != null)
+        {
+            var failedChecks = CodeGenHelpers.GetFailedChecks(output.SelfCheck);
+            if (failedChecks.Count > 0)
+            {
+                Logger.Warn($"Self-check reported {failedChecks.Count} failing rules: {string.Join(", ", failedChecks.Select(c => c.Rule))}");
+                foreach (var check in failedChecks)
+                {
+                    result.ValidationResults.Add(new ValidationResultDto
+                    {
+                        Id = $"self-check-{check.Rule}",
+                        Status = "failed",
+                        Message = $"[Self-Check] {check.Rule}: {check.Notes}"
+                    });
+                }
+            }
+
+            // Check for missing required files
+            var generatedPaths = output.Files.Select(f => f.Path).ToList();
+            var missingFiles = CodeGenHelpers.GetMissingRequiredFiles(output.RequiredFiles, generatedPaths);
+            if (missingFiles.Count > 0)
+            {
+                Logger.Warn($"AI committed to generating files that are missing: {string.Join(", ", missingFiles)}");
+                foreach (var missing in missingFiles)
+                {
+                    result.ValidationResults.Add(new ValidationResultDto
+                    {
+                        Id = $"missing-required-{CodeGenHelpers.Slugify(missing)}",
+                        Status = "failed",
+                        Message = $"Required file missing from AI output: {missing}"
+                    });
+                }
+            }
+        }
+
+        // Architecture summary (from JSON or legacy)
         if (!allowArchitectureOverride || !string.IsNullOrWhiteSpace(result.ArchitectureSummary))
             return;
 
-        var architecture = CodeGenHelpers.ParseDelimitedSection(layerResponse, "ARCHITECTURE");
-        if (!string.IsNullOrWhiteSpace(architecture))
-            result.ArchitectureSummary = architecture;
+        if (!string.IsNullOrWhiteSpace(output.Architecture))
+        {
+            result.ArchitectureSummary = output.Architecture;
+        }
+        else
+        {
+            var architecture = CodeGenHelpers.ParseDelimitedSection(layerResponse, "ARCHITECTURE");
+            if (!string.IsNullOrWhiteSpace(architecture))
+                result.ArchitectureSummary = architecture;
+        }
+    }
+
+    /// <summary>
+    /// Loads a few-shot example from the configured path.
+    /// </summary>
+    public string LoadFewShotExample(string layerDescription = null)
+    {
+        try
+        {
+            var fewShotDir = _configuration["CodeGen:FewShotExamplesPath"];
+            if (string.IsNullOrWhiteSpace(fewShotDir) || !Directory.Exists(fewShotDir))
+                return null;
+
+            // Try to find a matching example file
+            var files = Directory.GetFiles(fewShotDir, "*.json");
+            if (files.Length == 0)
+                return null;
+
+            // Use first available example (could be enhanced to match by layer type)
+            var examplePath = files[0];
+            var json = File.ReadAllText(examplePath);
+            
+            // Validate it's parseable
+            using var doc = JsonDocument.Parse(json);
+            return json;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Failed to load few-shot example: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Loads known failures from session history for a given project.
+    /// </summary>
+    public string LoadKnownFailures(string sessionId = null)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+            return null;
+
+        try
+        {
+            var session = _sessionManager.GetSessionAsync(sessionId).GetAwaiter().GetResult();
+            if (session?.ValidationResultsJson == null)
+                return null;
+
+            var results = System.Text.Json.JsonSerializer.Deserialize<List<ValidationResultDto>>(
+                session.ValidationResultsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (results == null)
+                return null;
+
+            var failures = results.Where(r => r.Status == "failed").ToList();
+            if (failures.Count == 0)
+                return null;
+
+            var sb = new StringBuilder();
+            foreach (var failure in failures)
+            {
+                sb.AppendLine($"- [{failure.Id}] {failure.Message}");
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Failed to load known failures: {ex.Message}");
+            return null;
+        }
     }
 
     private string BuildOutputPath(string projectName)
     {
         var outputBase = _configuration["CodeGen:OutputPath"]
             ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
-        return Path.Combine(outputBase, projectName);
+        
+        var sanitized = CodeGenHelpers.SanitizeDirName(projectName);
+        if (sanitized.Length > 32)
+        {
+            sanitized = sanitized[..24] + "-" + CodeGenHelpers.Hash(projectName)[..7];
+        }
+        
+        return Path.Combine(outputBase, sanitized);
     }
 }

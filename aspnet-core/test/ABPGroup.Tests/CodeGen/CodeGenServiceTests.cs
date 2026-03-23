@@ -11,6 +11,8 @@ using ABPGroup.Templates;
 using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -861,8 +863,9 @@ export const db = {};
             var sessionManager = new CodeGenSessionManager(sessionRepository, aiService, uowManager);
             var scaffolder = new CodeGenScaffolder();
             var validator = new CodeGenValidator();
+            var buildValidator = new CodeGenBuildValidator(Substitute.For<ILogger<CodeGenBuildValidator>>());
             var planner = new CodeGenPlanner(aiService, sessionManager);
-            var engine = new CodeGenEngine(aiService, planner, scaffolder, configuration);
+            var engine = new CodeGenEngine(aiService, planner, scaffolder, buildValidator, sessionManager, configuration);
             var refiner = new CodeGenRefiner(aiService, sessionManager, validator);
             var scopeFactory = Substitute.For<IServiceScopeFactory>();
 

@@ -1,6 +1,8 @@
 using Abp.Application.Services.Dto;
 using Abp.AutoMapper;
+using ABPGroup.CodeGen.Dto;
 using System;
+using System.Collections.Generic;
 
 namespace ABPGroup.Projects.Dto;
 
@@ -40,4 +42,6 @@ public class ProjectDto : EntityDto<long>
     public string GeneratedModules { get; set; }
 
     public string StatusMessage { get; set; }
+
+    public System.Collections.Generic.List<ValidationResultDto> ValidationResults { get; set; }
 }

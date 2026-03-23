@@ -19,12 +19,39 @@ public static class RefinementPrompts
 
 CRITICAL RULES:
 1. Return ONLY files that need to change. Do NOT return unchanged files.
-2. If a file needs to be deleted, include it in the DELETED section.
-3. Preserve all working code that is not affected by the change request.
-4. Ensure all imports still resolve after your changes.
-5. If you add new dependencies, also update package.json.
-6. No TODOs, placeholders, or incomplete implementations.
-7. The result must still compile and run.");
+2. Preserve all working code that is not affected by the change request.
+3. Ensure all imports still resolve after your changes.
+4. If you add new dependencies, also update package.json.
+5. No TODOs, placeholders, or incomplete implementations.
+6. The result must still compile and run.
+
+OUTPUT FORMAT:
+You MUST return a single valid JSON object matching this schema. No markdown fences, no commentary.
+
+{
+  ""architecture"": ""<brief description of what you changed and why>"",
+  ""modules"": [""<module names>""],
+  ""files"": [
+    {
+      ""path"": ""<file path relative to project root>"",
+      ""content"": ""<full new file content>""
+    }
+  ],
+  ""requiredFiles"": [""<all file paths changed>""],
+  ""selfCheck"": {
+    ""passed"": true|false,
+    ""checks"": [
+      { ""rule"": ""all-imports-resolve"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""no-todos-or-placeholders"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""scaffold-compatibility"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""routes-and-apis-aligned"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""dependencies-compatible"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""schema-consistent"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""auth-wired-end-to-end"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""env-vars-declared"", ""passed"": true|false, ""notes"": ""..."" }
+    ]
+  }
+}");
 
         sb.AppendLine("\nCHANGE REQUEST:");
         sb.AppendLine(changeRequest);
@@ -64,30 +91,12 @@ CRITICAL RULES:
 
         sb.AppendLine(@"
 
-RETURN FORMAT:
-===SUMMARY===
-<brief description of what you changed and why>
-===END SUMMARY===
-
-For each CHANGED file:
-
-===FILE===
-<file path relative to project root>
-===CONTENT===
-<full new file content>
-===END FILE===
-
-For DELETED files:
-
-===DELETED===
-<file path relative to project root>
-===END DELETED===
-
 SELF-CHECK BEFORE RETURNING:
 - Did I only change what was requested?
 - Do all imports resolve?
 - Will the app still compile?
-- Did I preserve working code?");
+- Did I preserve working code?
+Set ""passed"": false on any rule that fails. Fix it before returning.");
 
         return sb.ToString();
     }

@@ -165,6 +165,14 @@ public class CodeGenRefiner : DomainService, ICodeGenRefiner
 
     private static List<GeneratedFileDto> ParseFilesToDtos(string response)
     {
+        // Try new JSON envelope format first
+        var output = CodeGenHelpers.ParseGeneratorOutput(response);
+        if (output.Files != null && output.Files.Count > 0)
+        {
+            return output.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList();
+        }
+
+        // Fall back to legacy parsing
         var files = CodeGenHelpers.ParseFiles(response);
         return files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList();
     }

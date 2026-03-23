@@ -14,7 +14,8 @@ namespace ABPGroup.VercelDeployment
             long repoId,
             string branch,
             string projectName,
-            string commitSha);
+            string commitSha,
+            Dictionary<string, string> envVars = null);
 
         /// <summary>
         /// Lists deployments from Vercel (GET /v6/deployments).

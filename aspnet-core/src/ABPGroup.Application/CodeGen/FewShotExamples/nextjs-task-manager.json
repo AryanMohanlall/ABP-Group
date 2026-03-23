@@ -1,0 +1,77 @@
+{
+  "description": "Simple task management app with CRUD operations",
+  "stack": "Next.js + TypeScript + Prisma + Ant Design",
+  "prompt": "Build a task management app where users can create, read, update, and delete tasks. Each task has a title, description, due date, and completion status.",
+  "responseJson": {
+    "architecture": "Full-stack Next.js application with App Router, Prisma ORM for PostgreSQL, and Ant Design UI components. Frontend pages consume API routes that handle CRUD operations on the Task entity.",
+    "modules": ["tasks", "ui", "database", "api"],
+    "files": [
+      {
+        "path": "prisma/schema.prisma",
+        "content": "generator client {\n  provider = \"prisma-client-js\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Task {\n  id          String   @id @default(cuid())\n  title       String\n  description String?\n  dueDate     DateTime?\n  completed   Boolean  @default(false)\n  createdAt   DateTime @default(now())\n  updatedAt   DateTime @updatedAt\n}"
+      },
+      {
+        "path": "src/lib/prisma.ts",
+        "content": "import { PrismaClient } from '@prisma/client'\n\nconst globalForPrisma = globalThis as unknown as {\n  prisma: PrismaClient | undefined\n}\n\nexport const prisma = globalForPrisma.prisma ?? new PrismaClient()\n\nif (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma"
+      },
+      {
+        "path": "src/app/api/tasks/route.ts",
+        "content": "import { NextRequest, NextResponse } from 'next/server'\nimport { prisma } from '@/lib/prisma'\n\nexport async function GET() {\n  const tasks = await prisma.task.findMany({\n    orderBy: { createdAt: 'desc' }\n  })\n  return NextResponse.json(tasks)\n}\n\nexport async function POST(request: NextRequest) {\n  const body = await request.json()\n  const task = await prisma.task.create({\n    data: {\n      title: body.title,\n      description: body.description,\n      dueDate: body.dueDate ? new Date(body.dueDate) : null,\n      completed: body.completed ?? false\n    }\n  })\n  return NextResponse.json(task, { status: 201 })\n}"
+      },
+      {
+        "path": "src/app/api/tasks/[id]/route.ts",
+        "content": "import { NextRequest, NextResponse } from 'next/server'\nimport { prisma } from '@/lib/prisma'\n\nexport async function GET(\n  request: NextRequest,\n  { params }: { params: { id: string } }\n) {\n  const task = await prisma.task.findUnique({\n    where: { id: params.id }\n  })\n  if (!task) {\n    return NextResponse.json({ error: 'Task not found' }, { status: 404 })\n  }\n  return NextResponse.json(task)\n}\n\nexport async function PUT(\n  request: NextRequest,\n  { params }: { params: { id: string } }\n) {\n  const body = await request.json()\n  const task = await prisma.task.update({\n    where: { id: params.id },\n    data: {\n      title: body.title,\n      description: body.description,\n      dueDate: body.dueDate ? new Date(body.dueDate) : null,\n      completed: body.completed\n    }\n  })\n  return NextResponse.json(task)\n}\n\nexport async function DELETE(\n  request: NextRequest,\n  { params }: { params: { id: string } }\n) {\n  await prisma.task.delete({\n    where: { id: params.id }\n  })\n  return NextResponse.json({ message: 'Task deleted' })\n}"
+      },
+      {
+        "path": "src/app/page.tsx",
+        "content": "'use client'\n\nimport { useState, useEffect } from 'react'\nimport { Button, Card, Checkbox, Input, DatePicker, Modal, Form, message } from 'antd'\nimport { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'\nimport dayjs from 'dayjs'\n\ninterface Task {\n  id: string\n  title: string\n  description: string | null\n  dueDate: string | null\n  completed: boolean\n}\n\nexport default function Home() {\n  const [tasks, setTasks] = useState<Task[]>([])\n  const [loading, setLoading] = useState(true)\n  const [modalOpen, setModalOpen] = useState(false)\n  const [editingTask, setEditingTask] = useState<Task | null>(null)\n  const [form] = Form.useForm()\n\n  useEffect(() => {\n    fetchTasks()\n  }, [])\n\n  const fetchTasks = async () => {\n    try {\n      const res = await fetch('/api/tasks')\n      const data = await res.json()\n      setTasks(data)\n    } catch {\n      message.error('Failed to load tasks')\n    } finally {\n      setLoading(false)\n    }\n  }\n\n  const handleSubmit = async (values: any) => {\n    try {\n      const payload = {\n        title: values.title,\n        description: values.description,\n        dueDate: values.dueDate?.toISOString(),\n        completed: values.completed ?? false\n      }\n\n      if (editingTask) {\n        await fetch(`/api/tasks/${editingTask.id}`, {\n          method: 'PUT',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify(payload)\n        })\n        message.success('Task updated')\n      } else {\n        await fetch('/api/tasks', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify(payload)\n        })\n        message.success('Task created')\n      }\n\n      setModalOpen(false)\n      setEditingTask(null)\n      form.resetFields()\n      fetchTasks()\n    } catch {\n      message.error('Failed to save task')\n    }\n  }\n\n  const handleDelete = async (id: string) => {\n    try {\n      await fetch(`/api/tasks/${id}`, { method: 'DELETE' })\n      message.success('Task deleted')\n      fetchTasks()\n    } catch {\n      message.error('Failed to delete task')\n    }\n  }\n\n  const handleToggleComplete = async (task: Task) => {\n    try {\n      await fetch(`/api/tasks/${task.id}`, {\n        method: 'PUT',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ ...task, completed: !task.completed })\n      })\n      fetchTasks()\n    } catch {\n      message.error('Failed to update task')\n    }\n  }\n\n  return (\n    <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>\n      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>\n        <h1>Task Manager</h1>\n        <Button type=\"primary\" icon={<PlusOutlined />} onClick={() => { setEditingTask(null); form.resetFields(); setModalOpen(true) }}>\n          Add Task\n        </Button>\n      </div>\n\n      {loading ? (\n        <p>Loading...</p>\n      ) : tasks.length === 0 ? (\n        <Card><p style={{ textAlign: 'center', color: '#999' }}>No tasks yet. Create one to get started!</p></Card>\n      ) : (\n        tasks.map(task => (\n          <Card\n            key={task.id}\n            style={{ marginBottom: 8 }}\n            actions={[\n              <EditOutlined key=\"edit\" onClick={() => { setEditingTask(task); form.setFieldsValue({ ...task, dueDate: task.dueDate ? dayjs(task.dueDate) : null }); setModalOpen(true) }} />,\n              <DeleteOutlined key=\"delete\" onClick={() => handleDelete(task.id)} />\n            ]}\n          >\n            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>\n              <Checkbox checked={task.completed} onChange={() => handleToggleComplete(task)} />\n              <div style={{ flex: 1 }}>\n                <h3 style={{ textDecoration: task.completed ? 'line-through' : 'none', margin: 0 }}>{task.title}</h3>\n                {task.description && <p style={{ margin: '4px 0 0', color: '#666' }}>{task.description}</p>}\n                {task.dueDate && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#999' }}>Due: {new Date(task.dueDate).toLocaleDateString()}</p>}\n              </div>\n            </div>\n          </Card>\n        ))\n      )}\n\n      <Modal\n        title={editingTask ? 'Edit Task' : 'New Task'}\n        open={modalOpen}\n        onCancel={() => { setModalOpen(false); setEditingTask(null); form.resetFields() }}\n        onOk={() => form.submit()}\n      >\n        <Form form={form} layout=\"vertical\" onFinish={handleSubmit}>\n          <Form.Item name=\"title\" label=\"Title\" rules={[{ required: true, message: 'Please enter a title' }]}>\n            <Input placeholder=\"Task title\" />\n          </Form.Item>\n          <Form.Item name=\"description\" label=\"Description\">\n            <Input.TextArea placeholder=\"Task description\" rows={3} />\n          </Form.Item>\n          <Form.Item name=\"dueDate\" label=\"Due Date\">\n            <DatePicker style={{ width: '100%' }} />\n          </Form.Item>\n          <Form.Item name=\"completed\" label=\"Completed\" valuePropName=\"checked\">\n            <Checkbox>Mark as completed</Checkbox>\n          </Form.Item>\n        </Form>\n      </Modal>\n    </div>\n  )\n}"
+      },
+      {
+        "path": "src/app/layout.tsx",
+        "content": "import type { Metadata } from 'next'\nimport { AntdRegistry } from '@ant-design/nextjs-registry'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: 'Task Manager',\n  description: 'A simple task management application',\n}\n\nexport default function RootLayout({\n  children,\n}: {\n  children: React.ReactNode\n}) {\n  return (\n    <html lang=\"en\">\n      <body>\n        <AntdRegistry>{children}</AntdRegistry>\n      </body>\n    </html>\n  )\n}"
+      },
+      {
+        "path": "src/app/globals.css",
+        "content": "body {\n  margin: 0;\n  padding: 0;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n}"
+      },
+      {
+        "path": ".env.example",
+        "content": "# PostgreSQL connection string\nDATABASE_URL=\"postgresql://user:password@localhost:5432/taskdb\"\n\n# Next.js\nNEXTAUTH_SECRET=\"your-secret-key-here\"\nNEXTAUTH_URL=\"http://localhost:3000\""
+      },
+      {
+        "path": "package.json",
+        "content": "{\n  \"name\": \"task-manager\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"next lint\",\n    \"db:push\": \"prisma db push\",\n    \"db:generate\": \"prisma generate\"\n  },\n  \"dependencies\": {\n    \"@ant-design/icons\": \"^5.3.0\",\n    \"@ant-design/nextjs-registry\": \"^1.0.0\",\n    \"@prisma/client\": \"^6.9.0\",\n    \"antd\": \"^5.15.0\",\n    \"dayjs\": \"^1.11.10\",\n    \"next\": \"14.2.3\",\n    \"react\": \"^18\",\n    \"react-dom\": \"^18\"\n  },\n  \"devDependencies\": {\n    \"@types/node\": \"^20\",\n    \"@types/react\": \"^18\",\n    \"@types/react-dom\": \"^18\",\n    \"eslint\": \"^8\",\n    \"eslint-config-next\": \"14.2.3\",\n    \"prisma\": \"^6.9.0\",\n    \"typescript\": \"^5\"\n  }\n}"
+      },
+      {
+        "path": "tsconfig.json",
+        "content": "{\n  \"compilerOptions\": {\n    \"lib\": [\"dom\", \"dom.iterable\", \"esnext\"],\n    \"allowJs\": true,\n    \"skipLibCheck\": true,\n    \"strict\": true,\n    \"noEmit\": true,\n    \"esModuleInterop\": true,\n    \"module\": \"esnext\",\n    \"moduleResolution\": \"bundler\",\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"jsx\": \"preserve\",\n    \"incremental\": true,\n    \"plugins\": [{ \"name\": \"next\" }],\n    \"paths\": { \"@/*\": [\"./src/*\"] }\n  },\n  \"include\": [\"next-env.d.ts\", \"**/*.ts\", \"**/*.tsx\", \".next/types/**/*.ts\"],\n  \"exclude\": [\"node_modules\"]\n}"
+      },
+      {
+        "path": "next.config.ts",
+        "content": "import type { NextConfig } from 'next'\n\nconst nextConfig: NextConfig = {\n  reactStrictMode: true,\n}\n\nexport default nextConfig"
+      }
+    ],
+    "requiredFiles": [
+      "package.json",
+      "tsconfig.json",
+      "next.config.ts",
+      "src/app/layout.tsx",
+      "src/app/page.tsx",
+      "prisma/schema.prisma",
+      ".env.example"
+    ],
+    "selfCheck": {
+      "passed": true,
+      "checks": [
+        { "rule": "all-imports-resolve", "passed": true, "notes": "All imports point to files in the output (@/lib/prisma, @ant-design/*, @prisma/client) or scaffold." },
+        { "rule": "no-todos-or-placeholders", "passed": true, "notes": "No TODOs or placeholder code found." },
+        { "rule": "scaffold-compatibility", "passed": true, "notes": "Uses App Router (src/app), compatible with scaffold conventions." },
+        { "rule": "routes-and-apis-aligned", "passed": true, "notes": "Frontend fetches from /api/tasks and /api/tasks/[id] which are implemented." },
+        { "rule": "dependencies-compatible", "passed": true, "notes": "All packages are stable versions compatible with Next.js 14." },
+        { "rule": "schema-consistent", "passed": true, "notes": "Prisma schema defines Task model matching the spec. All fields are valid types." },
+        { "rule": "auth-wired-end-to-end", "passed": true, "notes": "Auth not required for this app. N/A." },
+        { "rule": "env-vars-declared", "passed": true, "notes": "DATABASE_URL and NEXTAUTH_SECRET listed in .env.example with descriptions." }
+      ]
+    }
+  }
+}

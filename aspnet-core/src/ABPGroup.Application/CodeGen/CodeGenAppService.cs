@@ -12,7 +12,6 @@ using ABPGroup.Templates;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Linq;
 
 namespace ABPGroup.CodeGen;
 
@@ -380,7 +379,8 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                 },
                 null,
                 plan,
-                approvedReadme);
+                approvedReadme,
+                sessionId);
 
             Logger.Info($"BackgroundGenerate: Generation completed for {sessionId}. Saving files...");
             
@@ -477,6 +477,6 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             Auth = input.IncludeAuth ? "Enabled" : "Disabled"
         };
         
-        return await _engine.GenerateProjectAsync(engineInput, stack, onProgress);
+        return await _engine.GenerateProjectAsync(engineInput, stack, onProgress, null, null, null, null);
     }
 }

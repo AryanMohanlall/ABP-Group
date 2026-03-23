@@ -29,7 +29,8 @@ namespace ABPGroup.VercelDeployment
             long repoId,
             string branch,
             string projectName,
-            string commitSha)
+            string commitSha,
+            Dictionary<string, string> envVars = null)
         {
             if (string.IsNullOrWhiteSpace(repositoryFullName))
             {
@@ -90,12 +91,16 @@ namespace ABPGroup.VercelDeployment
                     ? projectId
                     : (_configuration["Vercel:ProjectName"] ?? resolvedProjectName);
 
+                // If envVars are provided, we should ideally set them on the project first.
+                // For a single deployment, we can also pass them in the 'env' field.
+                var envList = envVars?.Select(kv => new { key = kv.Key, value = kv.Value }).ToList();
+
                 var requestBody = new
                 {
                     name = resolvedProjectName,
                     project = string.IsNullOrWhiteSpace(projectNameOrId) ? null : projectNameOrId,
                     target = "production",
-                    // gitMetadata is informational only — does not affect routing
+                    env = envVars, // Pass env vars for this specific deployment
                     gitMetadata = new
                     {
                         remoteUrl = string.Format("https://github.com/{0}", repositoryFullName),
@@ -104,11 +109,10 @@ namespace ABPGroup.VercelDeployment
                         dirty = false,
                         ci = false
                     },
-                    // gitSource MUST use numeric repoId — not repoUrl, not repo name
                     gitSource = new
                     {
                         type = "github",
-                        repoId = repoId.ToString(),   // ← the fix
+                        repoId = repoId.ToString(),
                         @ref = resolvedBranch,
                         sha = string.IsNullOrWhiteSpace(commitSha) ? null : commitSha
                     }

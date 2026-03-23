@@ -50,6 +50,7 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
             b.Property(x => x.ArchitectureSummary).HasMaxLength(1000);
             b.Property(x => x.GeneratedModules).HasMaxLength(500);
             b.Property(x => x.StatusMessage).HasMaxLength(200);
+            b.Property(x => x.ValidationResultsJson).HasColumnType("text");
         });
 
         modelBuilder.Entity<CodeGenSession>(b =>

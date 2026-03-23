@@ -1,0 +1,497 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using ABPGroup.CodeGen.Dto;
+
+namespace ABPGroup.CodeGen;
+
+/// <summary>
+/// Validates stack configuration combinations to prevent invalid pairings
+/// like TypeScript + EF Core, or .NET + Prisma.
+/// </summary>
+public static class StackCompatibilityValidator
+{
+    // ─────────────────────────────────────────────────────────────
+    // Canonical option sets
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>JavaScript/TypeScript frameworks.</summary>
+    private static readonly HashSet<string> JsFrameworks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Next.js", "NextJS", "React", "React Vite", "Vue", "Angular", "Nuxt", "Svelte", "Remix", "Astro"
+    };
+
+    /// <summary>.NET frameworks.</summary>
+    private static readonly HashSet<string> DotNetFrameworks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Blazor", ".NET", "ASP.NET", "ASP.NET Core", "Razor Pages", "MVC"
+    };
+
+    /// <summary>JavaScript/TypeScript languages.</summary>
+    private static readonly HashSet<string> JsLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TypeScript", "JavaScript", "TS", "JS"
+    };
+
+    /// <summary>.NET languages.</summary>
+    private static readonly HashSet<string> DotNetLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "C#", "CSharp", "F#", "FSharp", "VB.NET", "Visual Basic"
+    };
+
+    /// <summary>Node.js ORMs.</summary>
+    private static readonly HashSet<string> NodeOrms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex"
+    };
+
+    /// <summary>.NET ORMs.</summary>
+    private static readonly HashSet<string> DotNetOrms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "EF Core", "Entity Framework Core", "Dapper", "NHibernate"
+    };
+
+    /// <summary>SQL databases.</summary>
+    private static readonly HashSet<string> SqlDatabases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PostgreSQL", "MySQL", "SQL Server", "SQLite", "MariaDB", "MSSQL"
+    };
+
+    /// <summary>NoSQL databases.</summary>
+    private static readonly HashSet<string> NoSqlDatabases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "MongoDB", "CosmosDB", "DynamoDB", "Firebase", "Redis"
+    };
+
+    /// <summary>Styling options that work with JS frameworks.</summary>
+    private static readonly HashSet<string> JsStylingOptions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Tailwind CSS", "Tailwind", "CSS Modules", "Styled Components", "Ant Design",
+        "Material UI", "MUI", "Chakra UI", "Shadcn", "Bootstrap", "CSS", "SCSS", "SASS"
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Valid combinations (Framework → allowed ORMs)
+    // ─────────────────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, HashSet<string>> FrameworkToAllowedOrms =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Next.js"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["React"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["React Vite"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["Vue"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["Angular"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["Nuxt"] = new(StringComparer.OrdinalIgnoreCase) { "Prisma", "Drizzle", "TypeORM", "Sequelize", "Mongoose", "Knex" },
+        ["Blazor"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+        [".NET"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+        ["ASP.NET"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+        ["ASP.NET Core"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+        ["Razor Pages"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+        ["MVC"] = new(StringComparer.OrdinalIgnoreCase) { "EF Core", "Entity Framework Core", "Dapper", "NHibernate" },
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Default recommendations (Framework → recommended stack)
+    // ─────────────────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, (string Language, string Orm, string Styling)> FrameworkDefaults =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Next.js"] = ("TypeScript", "Prisma", "Tailwind CSS"),
+        ["React"] = ("TypeScript", "Prisma", "CSS Modules"),
+        ["React Vite"] = ("TypeScript", "Prisma", "CSS Modules"),
+        ["Vue"] = ("TypeScript", "Prisma", "CSS"),
+        ["Angular"] = ("TypeScript", "N/A (HttpClient)", "SCSS"),
+        ["Blazor"] = ("C#", "EF Core", "CSS"),
+        [".NET"] = ("C#", "EF Core", "CSS"),
+        ["ASP.NET Core"] = ("C#", "EF Core", "CSS"),
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Public API
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Validates the stack configuration and returns violations and suggestions.
+    /// </summary>
+    public static StackCompatibilityResultDto Validate(StackConfigDto stack)
+    {
+        var result = new StackCompatibilityResultDto { IsValid = true };
+
+        if (stack == null)
+            return result;
+
+        var framework = stack.Framework?.Trim() ?? "";
+        var language = stack.Language?.Trim() ?? "";
+        var orm = stack.Orm?.Trim() ?? "";
+        var database = stack.Database?.Trim() ?? "";
+        var styling = stack.Styling?.Trim() ?? "";
+
+        // ── Rule 1: Language must match framework ecosystem ──
+        ValidateLanguageFramework(result, framework, language);
+
+        // ── Rule 2: ORM must match framework ecosystem ──
+        ValidateOrmFramework(result, framework, orm);
+
+        // ── Rule 3: ORM must match language ──
+        ValidateOrmLanguage(result, language, orm);
+
+        // ── Rule 4: Database must be compatible with ORM ──
+        ValidateDatabaseOrm(result, database, orm);
+
+        // ── Rule 5: Styling must be compatible with framework ──
+        ValidateStylingFramework(result, framework, styling);
+
+        // ── Generate suggestions for invalid stacks ──
+        if (!result.IsValid)
+        {
+            GenerateSuggestions(result, framework, language, orm, styling);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns the canonical default stack for a given framework.
+    /// </summary>
+    public static StackConfigDto GetDefaultsForFramework(string framework)
+    {
+        var defaults = new StackConfigDto
+        {
+            Framework = framework,
+            Language = "TypeScript",
+            Orm = "Prisma",
+            Database = "PostgreSQL",
+            Styling = "Tailwind CSS",
+            Auth = "NextAuth.js"
+        };
+
+        if (FrameworkDefaults.TryGetValue(framework, out var fDefaults))
+        {
+            defaults.Language = fDefaults.Language;
+            defaults.Orm = fDefaults.Orm;
+            defaults.Styling = fDefaults.Styling;
+        }
+
+        // .NET defaults
+        if (IsDotNetFramework(framework))
+        {
+            defaults.Language = "C#";
+            defaults.Orm = "EF Core";
+            defaults.Database = "SQL Server";
+            defaults.Styling = "CSS";
+            defaults.Auth = "ASP.NET Identity";
+        }
+
+        return defaults;
+    }
+
+    /// <summary>
+    /// Formats violations into a string suitable for prompt injection.
+    /// </summary>
+    public static string FormatViolations(StackCompatibilityResultDto result)
+    {
+        if (result.IsValid)
+            return string.Empty;
+
+        var lines = new List<string> { "STACK COMPATIBILITY VIOLATIONS (these MUST be corrected):" };
+        foreach (var v in result.Violations)
+        {
+            lines.Add($"- [{v.Field}] {v.Message} (current: \"{v.Value}\")");
+        }
+
+        if (result.Suggestions.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("SUGGESTED CORRECTIONS:");
+            foreach (var s in result.Suggestions)
+            {
+                lines.Add($"- {s.Field}: change to \"{s.SuggestedValue}\" ({s.Reason})");
+            }
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// Returns a prompt-compatible string listing valid ORM options for a framework.
+    /// </summary>
+    public static string GetValidOrmsForFramework(string framework)
+    {
+        if (FrameworkToAllowedOrms.TryGetValue(framework, out var allowed))
+            return string.Join(", ", allowed);
+
+        if (IsJsFramework(framework))
+            return string.Join(", ", NodeOrms);
+
+        if (IsDotNetFramework(framework))
+            return string.Join(", ", DotNetOrms);
+
+        return "Prisma, EF Core, Dapper";
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Validation rules
+    // ─────────────────────────────────────────────────────────────
+
+    private static void ValidateLanguageFramework(StackCompatibilityResultDto result, string framework, string language)
+    {
+        if (string.IsNullOrWhiteSpace(framework) || string.IsNullOrWhiteSpace(language))
+            return;
+
+        var isJsFramework = IsJsFramework(framework);
+        var isDotNetFramework = IsDotNetFramework(framework);
+        var isJsLanguage = IsJsLanguage(language);
+        var isDotNetLanguage = IsDotNetLanguage(language);
+
+        if (isJsFramework && isDotNetLanguage)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Language",
+                Message = $"{language} is a .NET language and cannot be used with {framework} (a JavaScript/TypeScript framework)",
+                Value = language
+            });
+        }
+
+        if (isDotNetFramework && isJsLanguage)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Language",
+                Message = $"{language} is a JavaScript/TypeScript language and cannot be used with {framework} (a .NET framework)",
+                Value = language
+            });
+        }
+    }
+
+    private static void ValidateOrmFramework(StackCompatibilityResultDto result, string framework, string orm)
+    {
+        if (string.IsNullOrWhiteSpace(framework) || string.IsNullOrWhiteSpace(orm))
+            return;
+
+        if (FrameworkToAllowedOrms.TryGetValue(framework, out var allowed))
+        {
+            if (!allowed.Contains(orm))
+            {
+                result.IsValid = false;
+                result.Violations.Add(new StackCompatibilityViolationDto
+                {
+                    Field = "Orm",
+                    Message = $"{orm} is not compatible with {framework}. Valid ORMs: {string.Join(", ", allowed)}",
+                    Value = orm
+                });
+            }
+            return;
+        }
+
+        // Fallback: check ecosystem
+        var isJsFramework = IsJsFramework(framework);
+        var isDotNetOrm = IsDotNetOrm(orm);
+
+        if (isJsFramework && isDotNetOrm)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Orm",
+                Message = $"{orm} is a .NET ORM and cannot be used with {framework} (a JavaScript framework)",
+                Value = orm
+            });
+        }
+
+        var isDotNetFramework = IsDotNetFramework(framework);
+        var isNodeOrm = IsNodeOrm(orm);
+
+        if (isDotNetFramework && isNodeOrm)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Orm",
+                Message = $"{orm} is a Node.js ORM and cannot be used with {framework} (a .NET framework)",
+                Value = orm
+            });
+        }
+    }
+
+    private static void ValidateOrmLanguage(StackCompatibilityResultDto result, string language, string orm)
+    {
+        if (string.IsNullOrWhiteSpace(language) || string.IsNullOrWhiteSpace(orm))
+            return;
+
+        var isJsLanguage = IsJsLanguage(language);
+        var isDotNetLanguage = IsDotNetLanguage(language);
+        var isNodeOrm = IsNodeOrm(orm);
+        var isDotNetOrm = IsDotNetOrm(orm);
+
+        if (isJsLanguage && isDotNetOrm)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Orm",
+                Message = $"{orm} is a .NET ORM and cannot be used with {language}",
+                Value = orm
+            });
+        }
+
+        if (isDotNetLanguage && isNodeOrm)
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Orm",
+                Message = $"{orm} is a Node.js ORM and cannot be used with {language}",
+                Value = orm
+            });
+        }
+    }
+
+    private static void ValidateDatabaseOrm(StackCompatibilityResultDto result, string database, string orm)
+    {
+        if (string.IsNullOrWhiteSpace(database) || string.IsNullOrWhiteSpace(orm))
+            return;
+
+        // MongoDB/Mongoose pairing is valid
+        if (database.Equals("MongoDB", StringComparison.OrdinalIgnoreCase) &&
+            !orm.Equals("Mongoose", StringComparison.OrdinalIgnoreCase) &&
+            !orm.Equals("Prisma", StringComparison.OrdinalIgnoreCase) &&
+            !orm.Equals("Drizzle", StringComparison.OrdinalIgnoreCase))
+        {
+            // Mongoose is the canonical MongoDB ORM, Prisma/Drizzle also support it
+            // This is a soft warning, not a hard error
+        }
+
+        // SQL Server + Mongoose is invalid
+        if (database.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) &&
+            orm.Equals("Mongoose", StringComparison.OrdinalIgnoreCase))
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Database",
+                Message = $"{orm} is designed for MongoDB and cannot be used with {database}",
+                Value = database
+            });
+        }
+    }
+
+    private static void ValidateStylingFramework(StackCompatibilityResultDto result, string framework, string styling)
+    {
+        if (string.IsNullOrWhiteSpace(framework) || string.IsNullOrWhiteSpace(styling))
+            return;
+
+        var isJsFramework = IsJsFramework(framework);
+
+        // Ant Design is primarily for React
+        if (styling.Equals("Ant Design", StringComparison.OrdinalIgnoreCase) &&
+            !framework.Contains("React", StringComparison.OrdinalIgnoreCase) &&
+            !framework.Contains("Next", StringComparison.OrdinalIgnoreCase))
+        {
+            result.IsValid = false;
+            result.Violations.Add(new StackCompatibilityViolationDto
+            {
+                Field = "Styling",
+                Message = $"{styling} is designed for React/Next.js and may not work well with {framework}",
+                Value = styling
+            });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Suggestions
+    // ─────────────────────────────────────────────────────────────
+
+    private static void GenerateSuggestions(
+        StackCompatibilityResultDto result,
+        string framework,
+        string language,
+        string orm,
+        string styling)
+    {
+        // Suggest correct ORM for framework
+        foreach (var v in result.Violations.Where(v => v.Field == "Orm"))
+        {
+            if (FrameworkToAllowedOrms.TryGetValue(framework, out var allowed) && allowed.Count > 0)
+            {
+                var suggested = allowed.First();
+                result.Suggestions.Add(new StackCompatibilitySuggestionDto
+                {
+                    Field = "Orm",
+                    SuggestedValue = suggested,
+                    Reason = $"{suggested} is the recommended ORM for {framework}"
+                });
+            }
+        }
+
+        // Suggest correct language for framework
+        foreach (var v in result.Violations.Where(v => v.Field == "Language"))
+        {
+            if (FrameworkDefaults.TryGetValue(framework, out var defaults))
+            {
+                result.Suggestions.Add(new StackCompatibilitySuggestionDto
+                {
+                    Field = "Language",
+                    SuggestedValue = defaults.Language,
+                    Reason = $"{defaults.Language} is the standard language for {framework}"
+                });
+            }
+            else if (IsJsFramework(framework))
+            {
+                result.Suggestions.Add(new StackCompatibilitySuggestionDto
+                {
+                    Field = "Language",
+                    SuggestedValue = "TypeScript",
+                    Reason = "TypeScript is the recommended language for JavaScript frameworks"
+                });
+            }
+            else if (IsDotNetFramework(framework))
+            {
+                result.Suggestions.Add(new StackCompatibilitySuggestionDto
+                {
+                    Field = "Language",
+                    SuggestedValue = "C#",
+                    Reason = "C# is the standard language for .NET frameworks"
+                });
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+
+    private static bool IsJsFramework(string framework)
+    {
+        return JsFrameworks.Any(f => framework.Contains(f, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsDotNetFramework(string framework)
+    {
+        return DotNetFrameworks.Any(f => framework.Contains(f, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsJsLanguage(string language)
+    {
+        return JsLanguages.Any(l => language.Contains(l, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsDotNetLanguage(string language)
+    {
+        return DotNetLanguages.Any(l => language.Contains(l, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsNodeOrm(string orm)
+    {
+        return NodeOrms.Any(o => orm.Contains(o, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsDotNetOrm(string orm)
+    {
+        return DotNetOrms.Any(o => orm.Contains(o, StringComparison.OrdinalIgnoreCase));
+    }
+}

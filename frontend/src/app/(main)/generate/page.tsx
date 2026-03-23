@@ -58,6 +58,7 @@ export default function GeneratePage() {
   const [generationStatus, setGenerationStatus] = useState<IGenerationStatus | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCommittingAnyway, setIsCommittingAnyway] = useState(false);
 
   const handleCaptureNext = (result: ICodeGenSession) => {
     setSession(result);
@@ -147,6 +148,37 @@ export default function GeneratePage() {
     setCurrentStep(3);
   };
 
+  const handleCommitAnyway = async () => {
+    if (!session) return;
+    setIsCommittingAnyway(true);
+
+    try {
+      const stack = session.confirmedStack;
+      const project = await createProject({
+        name: session.projectName || "generated-app",
+        prompt: session.normalizedRequirement || session.prompt,
+        promptVersion: 1,
+        framework: mapFramework(stack?.framework),
+        language: mapLanguage(stack?.language),
+        databaseOption: mapDatabase(stack?.database),
+        includeAuth: !!stack?.auth && stack.auth.toLowerCase() !== "none",
+        status: ProjectStatus.CodeGenerationCompleted,
+        templateId: extraConfig?.templateId ?? undefined,
+        sessionId: session.id,
+      });
+
+      router.push(`/projects/${project.id}`);
+    } catch {
+      if (session.projectId) {
+        router.push(`/projects/${session.projectId}`);
+      } else {
+        router.push("/projects");
+      }
+    } finally {
+      setIsCommittingAnyway(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.stepSection}>
@@ -184,10 +216,12 @@ export default function GeneratePage() {
           status={generationStatus}
           onDeploy={handleDeploy}
           onSaveOnly={handleSaveOnly}
+          onCommitAnyway={handleCommitAnyway}
           onRetry={handleRetry}
           onBack={handleBackToSpec}
           isDeploying={isDeploying}
           isSaving={isSaving}
+          isCommittingAnyway={isCommittingAnyway}
         />
       )}
     </div>

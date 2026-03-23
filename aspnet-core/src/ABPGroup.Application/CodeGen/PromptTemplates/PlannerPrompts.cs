@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using ABPGroup.CodeGen.Dto;
 
 namespace ABPGroup.CodeGen.PromptTemplates;
@@ -7,7 +8,8 @@ public static class PlannerPrompts
 {
     private const string SpecContract = @"CRITICAL: Return ONLY valid JSON wrapped in delimiters:
 ===SPEC_JSON===
-{...}
+
+
 ===END SPEC_JSON===
 
 The JSON must have this exact structure:
@@ -76,6 +78,13 @@ The JSON must have this exact structure:
       ""description"": ""File purpose""
     }
   ],
+  ""requiredFiles"": [
+    ""package.json"",
+    ""src/app/layout.tsx"",
+    ""src/app/page.tsx"",
+    ""prisma/schema.prisma"",
+    "".env.example""
+  ],
   ""dependencyPlan"": {
     ""dependencies"": [
       {
@@ -111,11 +120,12 @@ The JSON must have this exact structure:
 8. Include all necessary pages for the application
 9. Include validation rules for build, auth, routes, and entity schemas
 10. List all files that will be generated
-11. For dependencyPlan, ONLY add packages NOT already in the scaffold baseline
-12. Mark isExisting=true only for packages already in the scaffold
-13. Use latest stable versions compatible with the scaffold
-14. List ALL required environment variables with descriptions
-15. For Next.js projects, assume the App Router (src/app). NEVER use or refer to the legacy /pages directory in validations, file manifests, or anywhere else.";
+11. The requiredFiles array MUST include ALL files needed to build and run the app (package.json, tsconfig, layout, page, prisma schema, .env.example, etc.)
+12. For dependencyPlan, ONLY add packages NOT already in the scaffold baseline
+13. Mark isExisting=true only for packages already in the scaffold
+14. Use latest stable versions compatible with the scaffold
+15. List ALL required environment variables with descriptions
+16. For Next.js projects, assume the App Router (src/app). NEVER use or refer to the legacy /pages directory in validations, file manifests, or anywhere else.";
 
     /// <summary>
     /// Builds a structured implementation-plan prompt from the user's normalized requirement.
@@ -124,14 +134,18 @@ The JSON must have this exact structure:
         string requirement,
         StackConfigDto stack,
         List<string> features,
-        List<string> entities)
+        List<string> entities,
+        string fewShotExample = null,
+        string knownFailures = null)
     {
         return BuildPrompt(
             "Generate a comprehensive application specification as a JSON object.",
             $"\n\nApplication: {requirement}\n"
             + $"Features: {string.Join(", ", features)}\n"
             + $"Entities: {string.Join(", ", entities)}\n"
-            + BuildStackContext(stack));
+            + BuildStackContext(stack),
+            fewShotExample,
+            knownFailures);
     }
 
     /// <summary>
@@ -142,7 +156,9 @@ The JSON must have this exact structure:
         StackConfigDto stack,
         string requirement,
         List<string> features,
-        List<string> entities)
+        List<string> entities,
+        string fewShotExample = null,
+        string knownFailures = null)
     {
         return BuildPrompt(
             "Convert the approved README below into a concrete implementation plan. Treat the README as the source of truth for scope, architecture, routes, entities, dependencies, and environment variables. Use the supplemental requirement hints to recover any explicit domain nouns, user flows, or in-memory entities that the README may only describe in prose.",
@@ -151,7 +167,9 @@ The JSON must have this exact structure:
             + $"Detected features: {string.Join(", ", features ?? new List<string>())}\n"
             + $"Detected entities: {string.Join(", ", entities ?? new List<string>())}\n"
             + "If the app is client-only or does not use a database, still include the core domain entities used in memory (for example Task, TodoItem, Note) and the pages/routes needed to operate them.\n\n"
-            + BuildStackContext(stack));
+            + BuildStackContext(stack),
+            fewShotExample,
+            knownFailures);
     }
 
     /// <summary>
@@ -173,29 +191,45 @@ Core Entities: {string.Join(", ", entities)}
 
 The response MUST include:
 ===SUMMARY===
-A concise (2-3 sentence) summary of the project architecture and the user's primary goal.
+
 ===END SUMMARY===
 
 ===README===
-A professional markdown README including:
-- Project Title
-- Tech Stack
-- Folder Structure (based on the chosen framework)
-- Core Features
-- Database Schema Overview
-- API endpoints (if applicable)
+
 ===END README===
 
 Focus on clarity and strategic architecture. Use the provided stack (Framework: {stack?.Framework}) as the technical constraint.";
     }
 
-    private static string BuildPrompt(string objective, string context)
+    private static string BuildPrompt(
+        string objective,
+        string context,
+        string fewShotExample = null,
+        string knownFailures = null)
     {
-        return $@"You are an expert software architect. {objective}
+        var sb = new StringBuilder();
+
+        sb.AppendLine($@"You are an expert software architect. {objective}
 
 {SpecContract}
 
-{SpecRules}{context}";
+{SpecRules}{context}");
+
+        if (!string.IsNullOrWhiteSpace(knownFailures))
+        {
+            sb.AppendLine($@"
+KNOWN FAILURES FROM PREVIOUS ATTEMPTS (avoid these patterns):
+{knownFailures}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(fewShotExample))
+        {
+            sb.AppendLine($@"
+FEW-SHOT EXAMPLE (a successful spec for a similar project — follow this structure):
+{fewShotExample}");
+        }
+
+        return sb.ToString();
     }
 
     private static string BuildStackContext(StackConfigDto stack)

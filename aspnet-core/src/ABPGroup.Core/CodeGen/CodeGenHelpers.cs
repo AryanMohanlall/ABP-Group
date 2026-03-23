@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -36,34 +38,22 @@ public static class CodeGenHelpers
 
     public static List<GeneratedFileDto> ParseFiles(string content)
     {
+        return ParseFilesRegex(content);
+    }
+
+    public static List<GeneratedFileDto> ParseFilesRegex(string content)
+    {
         var files = new List<GeneratedFileDto>();
         if (string.IsNullOrEmpty(content)) return files;
 
-        var remaining = content;
-        while (true)
+        // Pattern: ===FILE===path===CONTENT===content(until next FILE start or END FILE or end of string)
+        var pattern = @"===FILE===\s*(?<path>.*?)\s*===CONTENT===\s*(?<content>.*?)(?:\s*===END FILE===|\s*(?====FILE===)|$)";
+        var matches = Regex.Matches(content, pattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+        foreach (Match match in matches)
         {
-            var fileStart = remaining.IndexOf("===FILE===", StringComparison.OrdinalIgnoreCase);
-            if (fileStart < 0) break;
-
-            var pathStart = fileStart + "===FILE===".Length;
-            var contentTag = remaining.IndexOf("===CONTENT===", pathStart, StringComparison.OrdinalIgnoreCase);
-            if (contentTag < 0) break;
-
-            var path = remaining[pathStart..contentTag].Trim();
-            var contentStart = contentTag + "===CONTENT===".Length;
-            var fileEnd = remaining.IndexOf("===END FILE===", contentStart, StringComparison.OrdinalIgnoreCase);
-
-            string fileContent;
-            if (fileEnd >= 0)
-            {
-                fileContent = remaining[contentStart..fileEnd].Trim();
-                remaining = remaining[(fileEnd + "===END FILE===".Length)..];
-            }
-            else
-            {
-                fileContent = remaining[contentStart..].Trim();
-                break;
-            }
+            var path = match.Groups["path"].Value.Trim();
+            var fileContent = match.Groups["content"].Value.Trim();
 
             if (!string.IsNullOrEmpty(path))
             {
@@ -998,19 +988,22 @@ public static class CodeGenHelpers
             .Any(filePaths.Contains);
     }
 
-    public static bool HasStyledRoute(List<GeneratedFileDto> files, params string[] candidatePaths)
+    public static bool HasStyledRoute(IEnumerable files, params string[] candidatePaths)
     {
-        foreach (var candidatePath in candidatePaths)
+        if (files == null || candidatePaths == null || candidatePaths.Length == 0)
+            return false;
+
+        var normalizedTargets = candidatePaths.Select(NormalizeFilePath).ToList();
+
+        foreach (dynamic file in files)
         {
-            var normalizedPath = NormalizeFilePath(candidatePath);
-            var routeFile = files.FirstOrDefault(file =>
-                NormalizeFilePath(file.Path).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
-
-            if (routeFile == null)
-                continue;
-
-            if (ContainsStyleHint(routeFile.Content))
-                return true;
+            var path = (string)file.Path;
+            var normalizedPath = NormalizeFilePath(path);
+            if (normalizedTargets.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+            {
+                var content = (string)file.Content ?? string.Empty;
+                return ContainsStyleHint(content);
+            }
         }
 
         return false;
@@ -1030,28 +1023,362 @@ public static class CodeGenHelpers
             || Regex.IsMatch(content, @"import\s+.+\.(css|scss|sass|less)[""'];?", RegexOptions.IgnoreCase);
     }
 
-    public static bool HasStyledRoute(List<GeneratedFile> files, params string[] targetPaths)
+    public static string ExtractLayerMetadata(List<GeneratedFile> files)
     {
-        if (files == null || targetPaths == null || targetPaths.Length == 0)
-            return false;
+        if (files == null || files.Count == 0)
+            return string.Empty;
 
-        var normalizedTargets = targetPaths.Select(NormalizeFilePath).ToList();
-
-        foreach (var file in files)
+        var metadata = new StringBuilder();
+        
+        // Extract Entities from Prisma schema
+        var prismaFile = files.FirstOrDefault(f => f.Path.EndsWith("schema.prisma", StringComparison.OrdinalIgnoreCase));
+        if (prismaFile != null)
         {
-            var normalizedPath = NormalizeFilePath(file.Path);
-            if (normalizedTargets.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+            var entityMatches = Regex.Matches(prismaFile.Content, @"model\s+(?<name>\w+)\s+\{(?<fields>.*?)\}", RegexOptions.Singleline);
+            if (entityMatches.Count > 0)
             {
-                var content = file.Content ?? string.Empty;
-                // Look for common styling indicators (Tailwind classes, CSS-in-JS, UI libraries)
-                return content.Contains("className=", StringComparison.OrdinalIgnoreCase) ||
-                       content.Contains("style=", StringComparison.OrdinalIgnoreCase) ||
-                       content.Contains("sx=", StringComparison.OrdinalIgnoreCase) ||
-                       content.Contains("styled.", StringComparison.OrdinalIgnoreCase) ||
-                       content.Contains("@emotion", StringComparison.OrdinalIgnoreCase);
+                metadata.Append("[ENTITIES] ");
+                foreach (Match match in entityMatches)
+                {
+                    var name = match.Groups["name"].Value;
+                    metadata.Append($"{name}, ");
+                }
+                metadata.Length -= 2; // remove last comma
+                metadata.Append(". ");
             }
         }
 
-        return false;
+        // Extract API routes
+        var apiFiles = files.Where(f => f.Path.Contains("/api/") || f.Path.Contains("/routes/")).ToList();
+        if (apiFiles.Count > 0)
+        {
+            metadata.Append("[API ROUTES] ");
+            foreach (var file in apiFiles)
+            {
+                var path = NormalizeApiPath(file.Path);
+                if (!string.IsNullOrEmpty(path))
+                    metadata.Append($"{path}, ");
+            }
+            metadata.Length -= 2;
+            metadata.Append(". ");
+        }
+
+        return metadata.ToString().Trim();
+    }
+
+    public static string SanitizeDirName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "unnamed-project";
+        var sanitized = Regex.Replace(name.Trim(), @"[^a-zA-Z0-9\-_]", "-").ToLowerInvariant();
+        return sanitized;
+    }
+
+    public static string Hash(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "00000000";
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(value));
+        return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    public static string SummarizeStructuralFiles(IEnumerable files)
+    {
+        if (files == null)
+            return string.Empty;
+
+        var summary = new StringBuilder();
+        var allowedExtensions = new[] { ".ts", ".tsx", ".js", ".jsx" };
+        
+        // Convert to dynamic list for sorting
+        var fileList = new List<dynamic>();
+        foreach (dynamic f in files) fileList.Add(f);
+
+        foreach (dynamic file in fileList.OrderBy(f => (string)f.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            var path = (string)file.Path;
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            if (!allowedExtensions.Contains(ext))
+                continue;
+
+            var content = (string)file.Content ?? string.Empty;
+            var lines = content.Split('\n');
+            var structuralLines = lines
+                .Select(l => l.Trim())
+                .Where(l => l.StartsWith("export ") || 
+                            l.StartsWith("interface ") || 
+                            l.StartsWith("type ") || 
+                            l.StartsWith("class ") || 
+                            l.StartsWith("enum "))
+                .ToList();
+
+            if (structuralLines.Count > 0)
+            {
+                summary.AppendLine($"// STRUCTURE: {path}");
+                foreach (var line in structuralLines)
+                {
+                    summary.AppendLine(line);
+                }
+                summary.AppendLine();
+            }
+        }
+
+        return summary.ToString();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // JSON Envelope Parsing (new structured output format)
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses AI response content, attempting JSON envelope first, falling back to legacy delimiter format.
+    /// Returns a GeneratorOutputDto with files, modules, architecture, and self-check results.
+    /// </summary>
+    public static GeneratorOutputDto ParseGeneratorOutput(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return new GeneratorOutputDto();
+
+        // Try JSON envelope first
+        var jsonResult = TryParseGeneratorOutputJson(content);
+        if (jsonResult != null)
+            return jsonResult;
+
+        // Fall back to legacy delimiter format
+        return ParseGeneratorOutputLegacy(content);
+    }
+
+    /// <summary>
+    /// Attempts to parse the AI response as a JSON envelope (GeneratorOutputDto).
+    /// Handles cases where the AI wraps JSON in markdown fences or adds preamble text.
+    /// </summary>
+    private static GeneratorOutputDto TryParseGeneratorOutputJson(string content)
+    {
+        try
+        {
+            // Extract JSON from potential markdown fences or surrounding text
+            var json = ExtractJsonFromContent(content);
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var result = new GeneratorOutputDto
+            {
+                Architecture = GetStringProperty(root, "architecture") ?? string.Empty,
+                Modules = ParseStringList(GetPropertyCaseInsensitive(root, "modules")),
+                RequiredFiles = ParseStringList(GetPropertyCaseInsensitive(root, "requiredFiles")),
+                SelfCheck = ParseSelfCheck(GetPropertyCaseInsensitive(root, "selfCheck"))
+            };
+
+            // Parse files array
+            var filesElement = GetPropertyCaseInsensitive(root, "files");
+            if (filesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var fileElement in filesElement.EnumerateArray())
+                {
+                    var path = GetStringProperty(fileElement, "path");
+                    var fileContent = GetStringProperty(fileElement, "content");
+                    if (!string.IsNullOrWhiteSpace(path))
+                    {
+                        result.Files.Add(new GeneratorFileDto
+                        {
+                            Path = path,
+                            Content = fileContent ?? string.Empty
+                        });
+                    }
+                }
+            }
+
+            return result;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Extracts a JSON string from content that may contain markdown fences or surrounding text.
+    /// Handles: ```json ... ```, ===SPEC_JSON=== ... ===END SPEC_JSON===, or raw JSON.
+    /// </summary>
+    private static string ExtractJsonFromContent(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return null;
+
+        content = content.Trim();
+
+        // Try markdown JSON fence
+        var fenceMatch = Regex.Match(content, @"```json\s*\n?(.*?)\n?\s*```", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        if (fenceMatch.Success)
+            return fenceMatch.Groups[1].Value.Trim();
+
+        // Try legacy spec fence
+        var specMatch = Regex.Match(content, @"===SPEC_JSON===\s*\n?(.*?)\n?\s*===END SPEC_JSON===", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        if (specMatch.Success)
+            return specMatch.Groups[1].Value.Trim();
+
+        // Try to find JSON object boundaries
+        var startIdx = content.IndexOf('{');
+        if (startIdx < 0)
+            return null;
+
+        // Find matching closing brace using depth tracking
+        var depth = 0;
+        var inString = false;
+        var escape = false;
+        var endIdx = -1;
+
+        for (int i = startIdx; i < content.Length; i++)
+        {
+            var c = content[i];
+
+            if (escape)
+            {
+                escape = false;
+                continue;
+            }
+
+            if (c == '\\' && inString)
+            {
+                escape = true;
+                continue;
+            }
+
+            if (c == '"')
+            {
+                inString = !inString;
+                continue;
+            }
+
+            if (inString)
+                continue;
+
+            if (c == '{') depth++;
+            if (c == '}') depth--;
+
+            if (depth == 0)
+            {
+                endIdx = i;
+                break;
+            }
+        }
+
+        if (endIdx < 0)
+            return null;
+
+        return content[startIdx..(endIdx + 1)];
+    }
+
+    /// <summary>
+    /// Parses the selfCheck section of the JSON envelope.
+    /// </summary>
+    private static SelfCheckDto ParseSelfCheck(JsonElement element)
+    {
+        var result = new SelfCheckDto();
+
+        if (element.ValueKind != JsonValueKind.Object)
+            return result;
+
+        result.Passed = GetBoolProperty(element, "passed");
+
+        var checksElement = GetPropertyCaseInsensitive(element, "checks");
+        if (checksElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var checkElement in checksElement.EnumerateArray())
+            {
+                var rule = GetStringProperty(checkElement, "rule");
+                var passed = GetBoolProperty(checkElement, "passed");
+                var notes = GetStringProperty(checkElement, "notes");
+
+                if (!string.IsNullOrWhiteSpace(rule))
+                {
+                    result.Checks.Add(new SelfCheckRuleDto
+                    {
+                        Rule = rule,
+                        Passed = passed,
+                        Notes = notes ?? string.Empty
+                    });
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Falls back to legacy delimiter-based parsing when JSON parsing fails.
+    /// </summary>
+    private static GeneratorOutputDto ParseGeneratorOutputLegacy(string content)
+    {
+        var result = new GeneratorOutputDto
+        {
+            Architecture = ParseDelimitedSection(content, "ARCHITECTURE") ?? string.Empty,
+            Modules = ParseModules(content),
+            SelfCheck = new SelfCheckDto { Passed = true }
+        };
+
+        // Parse files using legacy regex
+        var legacyFiles = ParseFilesRegex(content);
+        foreach (var file in legacyFiles)
+        {
+            result.Files.Add(new GeneratorFileDto
+            {
+                Path = file.Path,
+                Content = file.Content
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Validates the self-check results and returns a list of failed checks.
+    /// </summary>
+    public static List<SelfCheckRuleDto> GetFailedChecks(SelfCheckDto selfCheck)
+    {
+        if (selfCheck?.Checks == null)
+            return new List<SelfCheckRuleDto>();
+
+        return selfCheck.Checks.Where(c => !c.Passed).ToList();
+    }
+
+    /// <summary>
+    /// Validates that all required files from the prompt were actually generated.
+    /// Returns a list of missing file paths.
+    /// </summary>
+    public static List<string> GetMissingRequiredFiles(
+        List<string> requiredFilesFromPrompt,
+        List<string> generatedFilePaths)
+    {
+        if (requiredFilesFromPrompt == null || requiredFilesFromPrompt.Count == 0)
+            return new List<string>();
+
+        var normalizedGenerated = new HashSet<string>(
+            generatedFilePaths.Select(NormalizeFilePath),
+            StringComparer.OrdinalIgnoreCase);
+
+        return requiredFilesFromPrompt
+            .Where(rf => !string.IsNullOrWhiteSpace(rf))
+            .Where(rf => !normalizedGenerated.Contains(NormalizeFilePath(rf)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Formats a list of failed self-check rules into a human-readable string for repair prompts.
+    /// </summary>
+    public static string FormatSelfCheckFailures(List<SelfCheckRuleDto> failedChecks)
+    {
+        if (failedChecks == null || failedChecks.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("SELF-CHECK FAILURES:");
+        foreach (var check in failedChecks)
+        {
+            sb.AppendLine($"- [{check.Rule}] {check.Notes}");
+        }
+        return sb.ToString();
     }
 }

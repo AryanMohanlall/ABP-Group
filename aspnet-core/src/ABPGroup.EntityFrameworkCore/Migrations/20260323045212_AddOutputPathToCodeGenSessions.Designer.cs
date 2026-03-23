@@ -3,6 +3,7 @@ using System;
 using ABPGroup.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ABPGroup.Migrations
 {
     [DbContext(typeof(ABPGroupDbContext))]
-    partial class ABPGroupDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260323045212_AddOutputPathToCodeGenSessions")]
+    partial class AddOutputPathToCodeGenSessions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -797,9 +800,6 @@ namespace ABPGroup.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ValidationResultsJson")
-                        .HasColumnType("text");
 
                     b.Property<int>("WorkspaceId")
                         .HasColumnType("integer");

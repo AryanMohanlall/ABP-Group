@@ -7,6 +7,7 @@ using ABPGroup.Deployments;
 using ABPGroup.Git;
 using ABPGroup.Projects;
 using ABPGroup.Authorization.Users;
+using ABPGroup.CodeGen;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -49,6 +50,7 @@ namespace ABPGroup.Controllers
         public class CommitGeneratedFilesInput
         {
             public long ProjectId { get; set; }
+            public string SessionId { get; set; }
             public string RepositoryName { get; set; }
             public string RepositoryFullName { get; set; }
             public string Owner { get; set; }
@@ -68,6 +70,7 @@ namespace ABPGroup.Controllers
         private readonly GitHubApiService _gitHubApiService;
         private readonly IVercelDeploymentService _vercelDeploymentService;
         private readonly IVercelDeploymentPolicy _vercelDeploymentPolicy;
+        private readonly ICodeGenSessionManager _sessionManager;
         private readonly IRepository<User, long> _userRepository;
         private readonly IRepository<Project, long> _projectRepository;
         private readonly IRepository<ProjectRepository, long> _projectRepositoryRepository;
@@ -79,6 +82,7 @@ namespace ABPGroup.Controllers
             GitHubApiService gitHubApiService,
             IVercelDeploymentService vercelDeploymentService,
             IVercelDeploymentPolicy vercelDeploymentPolicy,
+            ICodeGenSessionManager sessionManager,
             IRepository<User, long> userRepository,
             IRepository<Project, long> projectRepository,
             IRepository<ProjectRepository, long> projectRepositoryRepository,
@@ -89,6 +93,7 @@ namespace ABPGroup.Controllers
             _gitHubApiService = gitHubApiService;
             _vercelDeploymentService = vercelDeploymentService;
             _vercelDeploymentPolicy = vercelDeploymentPolicy;
+            _sessionManager = sessionManager;
             _userRepository = userRepository;
             _projectRepository = projectRepository;
             _projectRepositoryRepository = projectRepositoryRepository;
@@ -348,17 +353,40 @@ namespace ABPGroup.Controllers
                 });
             }
 
-            // Use same fallback as CodeGenEngine for consistency
-            var outputBase = _configuration["CodeGen:OutputPath"]
-                ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
+            string projectDir = null;
 
-            var projectDir = ResolveExistingProjectDirectory(outputBase, project.Name);
+            // 1. Try to resolve via SessionId (most accurate)
+            if (!string.IsNullOrEmpty(input.SessionId))
+            {
+                try
+                {
+                    var session = await _sessionManager.GetSessionAsync(input.SessionId);
+                    if (!string.IsNullOrEmpty(session.OutputPath) && Directory.Exists(session.OutputPath))
+                    {
+                        projectDir = Path.GetFullPath(session.OutputPath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"Failed to load session {input.SessionId} for path resolution: {ex.Message}");
+                }
+            }
+
+            // 2. Fallback to name-based resolution
+            if (string.IsNullOrEmpty(projectDir))
+            {
+                var outputBase = _configuration["CodeGen:OutputPath"]
+                    ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
+
+                projectDir = ResolveExistingProjectDirectory(outputBase, project.Name);
+            }
+
             if (string.IsNullOrWhiteSpace(projectDir))
             {
                 return NotFound(new
                 {
                     message = "Generated project files were not found on server.",
-                    details = $"Checked under {outputBase} for project name '{project.Name}'."
+                    details = $"Checked under session OutputPath and project name '{project.Name}'."
                 });
             }
 

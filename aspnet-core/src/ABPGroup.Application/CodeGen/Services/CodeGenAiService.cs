@@ -28,6 +28,11 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
 
     public async Task<string> CallAiAsync(string systemPrompt, string userPrompt)
     {
+        return await CallAiAsync(systemPrompt, userPrompt, null);
+    }
+
+    public async Task<string> CallAiAsync(string systemPrompt, string userPrompt, string responseMimeType = null)
+    {
         var provider = _configuration["CodeGen:AiProvider"]?.ToLowerInvariant() ?? "gemini";
         
         if (provider == "claude")
@@ -35,10 +40,16 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
             return await _claudeApiClient.CallClaudeAsync(systemPrompt, userPrompt);
         }
 
-        return await CallGeminiAsync(systemPrompt, userPrompt);
+        // Auto-detect JSON mode if prompt asks for it and no specific mime type is provided
+        if (responseMimeType == null && (systemPrompt.Contains("json", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("json", StringComparison.OrdinalIgnoreCase)))
+        {
+            responseMimeType = "application/json";
+        }
+
+        return await CallGeminiAsync(systemPrompt, userPrompt, responseMimeType);
     }
 
-    private async Task<string> CallGeminiAsync(string systemPrompt, string userPrompt)
+    private async Task<string> CallGeminiAsync(string systemPrompt, string userPrompt, string responseMimeType = null)
     {
         var apiKey = _configuration["Gemini:ApiKey"];
         var model = _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
@@ -71,7 +82,8 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
                     generationConfig = new
                     {
                         temperature = 0.7,
-                        maxOutputTokens = 8192
+                        maxOutputTokens = 8192,
+                        response_mime_type = responseMimeType ?? "text/plain"
                     }
                 };
 

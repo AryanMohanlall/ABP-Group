@@ -32,4 +32,5 @@ public class CodeGenSession : Entity<Guid>
     // NEW: Generation mode tracking
     public string GenerationMode { get; set; } // "full" | "refinement" | "repair"
     public string RefinementHistoryJson { get; set; } // JSON array of past refinements
+    public string OutputPath { get; set; }
 }

@@ -225,4 +225,67 @@ export const useStyles = createStyles(({ css }) => ({
       color: #ffffff;
     }
   `,
+  recommendedFixesSection: css`
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  `,
+  recommendedFixesHeader: css`
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f59e0b;
+  `,
+  recommendedFixesList: css`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  `,
+  recommendedFixItem: css`
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: #d4a373;
+    line-height: 1.5;
+
+    strong {
+      color: #f59e0b;
+      margin-right: 4px;
+    }
+  `,
+  commitAnywayButton: css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: none;
+    color: #0c121a;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.25);
+    margin-top: 8px;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(245, 158, 11, 0.4);
+      filter: brightness(1.1);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  `,
 }));

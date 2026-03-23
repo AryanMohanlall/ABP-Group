@@ -354,4 +354,68 @@ export const useStyles = createStyles(({ token, css }) => ({
   emptyState: css`
     padding: ${token.paddingXL}px !important;
   `,
+
+  recommendedFixesList: css`
+    display: flex;
+    flex-direction: column;
+    gap: ${token.marginMD}px;
+    margin-bottom: ${token.marginLG}px;
+  `,
+
+  recommendedFixItem: css`
+    display: flex;
+    flex-direction: column;
+    gap: ${token.marginXS}px;
+    padding: ${token.paddingSM}px;
+    background: ${token.colorWarningBg};
+    border: 1px solid ${token.colorWarningBorder};
+    border-radius: ${token.borderRadius}px;
+  `,
+
+  fixHeader: css`
+    display: flex;
+    align-items: center;
+    gap: ${token.marginXS}px;
+  `,
+
+  fixIcon: css`
+    color: ${token.colorWarning};
+    font-size: ${token.fontSizeSM}px;
+  `,
+
+  fixId: css`
+    font-size: ${token.fontSizeSM}px;
+    font-weight: 600;
+    color: ${token.colorText};
+  `,
+
+  fixDescription: css`
+    font-size: ${token.fontSizeSM}px;
+    color: ${token.colorTextSecondary};
+    margin: 0;
+    line-height: 1.5;
+  `,
+
+  commitAnywayButton: css`
+    margin-top: ${token.marginSM}px;
+    background: linear-gradient(135deg, ${token.colorWarning}, #d97706) !important;
+    border: none !important;
+    font-weight: 600;
+    height: 40px;
+    border-radius: ${token.borderRadius}px;
+  `,
+
+  commitButton: css`
+    height: 40px;
+    font-weight: 600;
+    border-radius: ${token.borderRadius}px;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a) !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(45, 212, 168, 0.25);
+
+    &:hover:not(:disabled) {
+      box-shadow: 0 8px 24px rgba(45, 212, 168, 0.4) !important;
+      filter: brightness(1.1);
+    }
+  `,
 }));

@@ -50,6 +50,8 @@ public class Project : Entity<long>
     public string GeneratedModules { get; set; }
 
     public string StatusMessage { get; set; }
+    
+    public string ValidationResultsJson { get; set; }
 
     public ICollection<Prompt> Prompts { get; set; }
 

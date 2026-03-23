@@ -48,8 +48,17 @@ export interface IProjectItem {
   status: ProjectStatus;
   statusMessage?: string | null;
   templateId?: number | null;
+  validationResults?: IValidationResult[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IValidationResult {
+  id: string;
+  status: "pending" | "running" | "passed" | "failed";
+  message?: string;
+  logs?: string;
+  errors?: string[];
 }
 
 export interface IProjectCreateInput {

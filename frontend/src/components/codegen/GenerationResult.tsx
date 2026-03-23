@@ -8,6 +8,8 @@ import {
   RefreshCwIcon,
   ArrowLeftIcon,
   SaveIcon,
+  AlertTriangleIcon,
+  WrenchIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
@@ -19,10 +21,12 @@ interface GenerationResultProps {
   status: IGenerationStatus;
   onDeploy: () => void;
   onSaveOnly?: () => void;
+  onCommitAnyway?: () => void;
   onRetry: () => void;
   onBack: () => void;
   isDeploying?: boolean;
   isSaving?: boolean;
+  isCommittingAnyway?: boolean;
 }
 
 export function GenerationResult({
@@ -30,10 +34,12 @@ export function GenerationResult({
   status,
   onDeploy,
   onSaveOnly,
+  onCommitAnyway,
   onRetry,
   onBack,
   isDeploying = false,
   isSaving = false,
+  isCommittingAnyway = false,
 }: GenerationResultProps) {
   const { styles } = useStyles();
   const { isPending, session } = useCodeGenState();
@@ -62,6 +68,43 @@ export function GenerationResult({
     } catch {
       // error handled by provider
     }
+  };
+
+  const getRecommendedFix = (id: string, message?: string): string => {
+    const lowerId = id.toLowerCase();
+    const lowerMsg = (message ?? "").toLowerCase();
+
+    if (lowerId.includes("build") || lowerMsg.includes("build")) {
+      return "Run 'npm run build' locally to identify and fix compilation errors before committing.";
+    }
+    if (lowerId.includes("lint") || lowerMsg.includes("lint")) {
+      return "Run 'npm run lint' and fix ESLint warnings/errors to ensure code quality.";
+    }
+    if (lowerId.includes("test") || lowerMsg.includes("test")) {
+      return "Run 'npm test' to verify all tests pass. Fix any failing tests before committing.";
+    }
+    if (lowerId.includes("import") || lowerMsg.includes("import")) {
+      return "Check for missing or incorrect import paths. Ensure all referenced modules exist.";
+    }
+    if (lowerId.includes("type") || lowerMsg.includes("type")) {
+      return "Run 'npx tsc --noEmit' to check for TypeScript errors. Fix type mismatches.";
+    }
+    if (lowerId.includes("prisma") || lowerMsg.includes("prisma") || lowerMsg.includes("schema")) {
+      return "Run 'npx prisma validate' to check schema syntax. Ensure models match your code.";
+    }
+    if (lowerId.includes("env") || lowerMsg.includes("environment")) {
+      return "Ensure all required environment variables are defined in .env.example with descriptions.";
+    }
+    if (lowerId.includes("auth") || lowerMsg.includes("auth")) {
+      return "Verify authentication flow: check session handling, protected routes, and token validation.";
+    }
+    if (lowerId.includes("route") || lowerMsg.includes("route") || lowerMsg.includes("api")) {
+      return "Verify all API routes exist and match the paths used in frontend fetch calls.";
+    }
+    if (lowerId.includes("dependency") || lowerMsg.includes("package")) {
+      return "Run 'npm install' to ensure all dependencies are installed. Check package.json for version conflicts.";
+    }
+    return "Review the error details above and fix the issue in your code. You can commit anyway to proceed with manual fixes.";
   };
 
   if (isSuccess) {
@@ -141,6 +184,36 @@ export function GenerationResult({
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {failures.length > 0 && !status.errorMessage && (
+          <div className={styles.recommendedFixesSection}>
+            <div className={styles.recommendedFixesHeader}>
+              <WrenchIcon size={16} />
+              <span>Recommended Fixes</span>
+            </div>
+            <div className={styles.recommendedFixesList}>
+              {failures.map((f) => (
+                <div key={`fix-${f.id}`} className={styles.recommendedFixItem}>
+                  <AlertTriangleIcon size={14} />
+                  <span>
+                    <strong>{f.id}</strong>: {getRecommendedFix(f.id, f.message)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {onCommitAnyway && (
+              <button
+                type="button"
+                className={styles.commitAnywayButton}
+                onClick={onCommitAnyway}
+                disabled={isCommittingAnyway}
+              >
+                {isCommittingAnyway ? <Spin size="small" /> : <RocketIcon size={16} />}
+                {isCommittingAnyway ? "Committing..." : "Commit Anyway"}
+              </button>
+            )}
           </div>
         )}
 

@@ -21,7 +21,7 @@ public static class RepairPrompts
         var relevantFiles = SelectRelevantFiles(currentFiles, affectedPaths);
         var sb = new StringBuilder();
 
-        sb.AppendLine(@"You are an expert code repair agent. The generated code has validation failures that must be fixed using targeted diffs.
+        sb.AppendLine(@"You are an expert code repair agent. The generated code has validation failures that must be fixed.
 
 CRITICAL RULES:
 1. Make the smallest possible set of changes needed to fix the failures.
@@ -32,7 +32,37 @@ CRITICAL RULES:
 6. Ensure all imports resolve after your changes.
 7. No TODOs, placeholders, or incomplete implementations.
 8. The result must compile and run.
-9. For Next.js, always use the App Router (src/app/) and never the legacy /pages directory.");
+9. For Next.js, always use the App Router (src/app/) and never the legacy /pages directory.
+
+OUTPUT FORMAT:
+You MUST return a single valid JSON object matching this schema. No markdown fences, no commentary.
+
+{
+  ""architecture"": ""<brief description of the repair>"",
+  ""modules"": [""<module names>""],
+  ""files"": [
+    {
+      ""path"": ""<file path relative to project root>"",
+      ""content"": ""<corrected full file content>""
+    }
+  ],
+  ""requiredFiles"": [""<all file paths in the repair>""],
+  ""selfCheck"": {
+    ""passed"": true|false,
+    ""checks"": [
+      { ""rule"": ""all-imports-resolve"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""no-todos-or-placeholders"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""scaffold-compatibility"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""routes-and-apis-aligned"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""dependencies-compatible"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""schema-consistent"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""auth-wired-end-to-end"", ""passed"": true|false, ""notes"": ""..."" },
+      { ""rule"": ""env-vars-declared"", ""passed"": true|false, ""notes"": ""..."" }
+    ]
+  }
+}
+
+Only return files that need changes. Do not return files that are already correct.");
 
         sb.AppendLine("\nVALIDATION FAILURES:");
         foreach (var failure in failures.Where(f => f.Status == "failed"))
@@ -66,33 +96,13 @@ CRITICAL RULES:
 
         sb.AppendLine(@"
 
-RETURN FORMAT:
-===SUMMARY===
-<brief description of the diff-based repair>
-===END SUMMARY===
-
-For each file that needs fixing:
-
-===FILE===
-<file path relative to project root>
-===CONTENT===
-<corrected full file content>
-===END FILE===
-
-For DELETED files:
-
-===DELETED===
-<file path relative to project root>
-===END DELETED===
-
-Only return files that need changes. Do not return files that are already correct.
-
 SELF-CHECK BEFORE RETURNING:
 - Did I fix all validation failures?
 - Did I keep the repair tightly scoped to the affected files?
 - Did I avoid introducing new issues?
 - Do all imports resolve?
-- Will the app still compile?");
+- Will the app still compile?
+Set ""passed"": false on any rule that fails. Fix it before returning.");
 
         return sb.ToString();
     }

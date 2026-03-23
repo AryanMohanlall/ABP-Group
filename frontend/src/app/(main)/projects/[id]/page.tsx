@@ -9,6 +9,9 @@ import {
   DeploymentUnitOutlined,
   GithubOutlined,
   LoadingOutlined,
+  RocketOutlined,
+  WarningOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
 import { Button, Card, Empty, Spin, Tag, Timeline, Typography } from "antd";
 import { useStyles } from "./styles/style";
@@ -108,6 +111,8 @@ export default function ProjectDetailPage() {
   const [repository, setRepository] = useState<RepositoryInfo | null>(null);
   const [isLoadingDeployments, setIsLoadingDeployments] = useState(false);
   const [isLoadingRepo, setIsLoadingRepo] = useState(false);
+  const [isCommittingAnyway, setIsCommittingAnyway] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
 
   useEffect(() => {
     if (Number.isFinite(projectId)) {
@@ -162,6 +167,104 @@ export default function ProjectDetailPage() {
   const handleBack = () => {
     router.push("/projects");
   };
+
+  const getRecommendedFix = (id: string, message?: string): string => {
+    const lowerId = id.toLowerCase();
+    const lowerMsg = (message ?? "").toLowerCase();
+
+    if (lowerId.includes("build") || lowerMsg.includes("build")) {
+      return "Run 'npm run build' locally to identify and fix compilation errors before committing.";
+    }
+    if (lowerId.includes("lint") || lowerMsg.includes("lint")) {
+      return "Run 'npm run lint' and fix ESLint warnings/errors to ensure code quality.";
+    }
+    if (lowerId.includes("test") || lowerMsg.includes("test")) {
+      return "Run 'npm test' to verify all tests pass. Fix any failing tests before committing.";
+    }
+    if (lowerId.includes("import") || lowerMsg.includes("import")) {
+      return "Check for missing or incorrect import paths. Ensure all referenced modules exist.";
+    }
+    if (lowerId.includes("type") || lowerMsg.includes("type")) {
+      return "Run 'npx tsc --noEmit' to check for TypeScript errors. Fix type mismatches.";
+    }
+    if (lowerId.includes("prisma") || lowerMsg.includes("prisma") || lowerMsg.includes("schema")) {
+      return "Run 'npx prisma validate' to check schema syntax. Ensure models match your code.";
+    }
+    if (lowerId.includes("env") || lowerMsg.includes("environment")) {
+      return "Ensure all required environment variables are defined in .env.example with descriptions.";
+    }
+    if (lowerId.includes("auth") || lowerMsg.includes("auth")) {
+      return "Verify authentication flow: check session handling, protected routes, and token validation.";
+    }
+    if (lowerId.includes("route") || lowerMsg.includes("route") || lowerMsg.includes("api")) {
+      return "Verify all API routes exist and match the paths used in frontend fetch calls.";
+    }
+    if (lowerId.includes("dependency") || lowerMsg.includes("package")) {
+      return "Run 'npm install' to ensure all dependencies are installed. Check package.json for version conflicts.";
+    }
+    return "Review the error details above and fix the issue in your code. You can commit anyway to proceed with manual fixes.";
+  };
+
+  const commitToGitHub = async (setLoading: (v: boolean) => void) => {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      const axiosInstance = (await import("@/utils/axiosInstance")).getAxiosInstance();
+
+      let repo = repository;
+
+      // Create a repo if one doesn't exist yet
+      if (!repo) {
+        const sanitizedName = selected.name
+          .trim()
+          .replace(/[^a-zA-Z0-9\-_]/g, "-")
+          .toLowerCase();
+        const createRes = await axiosInstance.post(`/api/github-app/repositories`, {
+          name: sanitizedName,
+          description: selected.prompt?.slice(0, 200) || "",
+          isPrivate: true,
+          autoInit: true,
+          projectId: selected.id,
+        });
+        const created = createRes.data?.result?.repository ?? createRes.data?.repository;
+        if (created) {
+          repo = {
+            id: created.id,
+            provider: "GitHub",
+            owner: created.fullName?.split("/")[0] ?? "",
+            name: created.name,
+            fullName: created.fullName,
+            defaultBranch: created.defaultBranch ?? "main",
+            visibility: created.private ? "Private" : "Public",
+            htmlUrl: created.htmlUrl,
+            createdAt: created.createdAt ?? new Date().toISOString(),
+            updatedAt: created.updatedAt ?? new Date().toISOString(),
+          };
+          setRepository(repo);
+        }
+      }
+
+      if (!repo) throw new Error("Failed to create repository");
+
+      await axiosInstance.post(`/api/github-app/commit-generated`, {
+        projectId: selected.id,
+        repositoryName: repo.name,
+        repositoryFullName: repo.fullName,
+        owner: repo.owner,
+        branch: repo.defaultBranch || "main",
+        commitMessage: `feat: generated code for ${selected.name}`,
+        autoDeploy: true,
+      });
+      fetchById(projectId);
+    } catch {
+      // error handled by provider
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCommitAnyway = () => commitToGitHub(setIsCommittingAnyway);
+  const handleCommitToGitHub = () => commitToGitHub(setIsCommitting);
 
   if (isPending && !selected) {
     return (
@@ -225,6 +328,18 @@ export default function ProjectDetailPage() {
               {statusLabel}
             </Tag>
           </div>
+          {selected.status === ProjectStatus.CodeGenerationCompleted && (
+            <Button
+              type="primary"
+              icon={isCommitting ? <LoadingOutlined /> : <GithubOutlined />}
+              onClick={handleCommitToGitHub}
+              loading={isCommitting}
+              disabled={isCommitting}
+              className={styles.commitButton}
+            >
+              Commit to GitHub
+            </Button>
+          )}
         </div>
 
         {selected.statusMessage && (
@@ -286,6 +401,42 @@ export default function ProjectDetailPage() {
                 <Paragraph className={styles.promptText}>
                   {selected.prompt}
                 </Paragraph>
+              </div>
+            </Card>
+          )}
+
+          {selected.status === ProjectStatus.Failed && selected.validationResults && selected.validationResults.length > 0 && (
+            <Card className={styles.card} styles={{ body: { padding: 0 } }}>
+              <div className={styles.cardHeader}>
+                <ToolOutlined className={styles.cardIcon} />
+                <span className={styles.cardTitle}>Recommended Fixes</span>
+              </div>
+              <div className={styles.cardBody}>
+                <div className={styles.recommendedFixesList}>
+                  {selected.validationResults
+                    .filter((v: { status: string }) => v.status === "failed")
+                    .map((failure: { id: string; message?: string }) => (
+                      <div key={failure.id} className={styles.recommendedFixItem}>
+                        <div className={styles.fixHeader}>
+                          <WarningOutlined className={styles.fixIcon} />
+                          <span className={styles.fixId}>{failure.id}</span>
+                        </div>
+                        <p className={styles.fixDescription}>
+                          {getRecommendedFix(failure.id, failure.message)}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+                <Button
+                  type="primary"
+                  icon={isCommittingAnyway ? <LoadingOutlined /> : <RocketOutlined />}
+                  onClick={handleCommitAnyway}
+                  disabled={isCommittingAnyway}
+                  className={styles.commitAnywayButton}
+                  block
+                >
+                  {isCommittingAnyway ? "Committing..." : "Commit Anyway"}
+                </Button>
               </div>
             </Card>
           )}

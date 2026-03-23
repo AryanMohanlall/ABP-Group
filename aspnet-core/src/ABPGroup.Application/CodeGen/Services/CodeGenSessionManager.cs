@@ -174,7 +174,8 @@ public class CodeGenSessionManager : DomainService, ICodeGenSessionManager
             IsPublic = session.IsPublic,
             GenerationMode = session.GenerationMode,
             CreatedAt = session.CreatedAt,
-            UpdatedAt = session.UpdatedAt
+            UpdatedAt = session.UpdatedAt,
+            OutputPath = session.OutputPath
         };
     }
 

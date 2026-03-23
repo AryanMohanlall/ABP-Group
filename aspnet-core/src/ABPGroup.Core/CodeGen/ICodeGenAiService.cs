@@ -6,4 +6,5 @@ namespace ABPGroup.CodeGen;
 public interface ICodeGenAiService : ITransientDependency
 {
     Task<string> CallAiAsync(string systemPrompt, string userPrompt);
+    Task<string> CallAiAsync(string systemPrompt, string userPrompt, string responseMimeType);
 }
